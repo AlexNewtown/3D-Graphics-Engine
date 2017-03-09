@@ -1,0 +1,366 @@
+const float MIN_FLOAT = -8388608;
+const float MAX_FLOAT= 213909504;
+uniform mat4 modelViewInverseMatrix;
+
+struct RayHitInfo
+{
+	vec3 rayDirection;
+	vec3 rayPosition;
+	
+	vec4 min;
+	vec4 max;
+	
+	float tmin;
+	float tmax;
+	
+	float txmin;
+	float txmax;
+	float tymin;
+	float tymax;
+	float tzmin;
+	float tzmax;
+};
+
+struct Face_vertex
+{
+	vec4 vertex1;
+	vec4 vertex2;
+	vec4 vertex3;
+};
+
+struct Face_normal
+{
+	vec4 normal1;
+	vec4 normal2;
+	vec4 normal3;
+};
+
+struct Face_texCoord
+{
+	vec2 texCoord1;
+	vec2 texCoord2;
+	vec2 texCoord3;
+};
+void copyHitInfo(inout RayHitInfo a, RayHitInfo b);
+void computeMinMax(vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo);
+int getSmallestT( RayHitInfo hitInfo );
+int getLargestT( RayHitInfo hitInfo );
+void swap(inout float tmin, inout float tmax);
+bool rayBoxIntersect(vec3 rayDir, vec3 rayPos, vec3 min, vec3 max, inout RayHitInfo hitInfo);
+bool rayTriangleIntersect(Face_vertex face, vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo);
+void transformRay(inout vec3 rayDir, inout vec3 rayPos);
+void transformBounds(inout vec3 boundsMin, inout vec3 boundsMax);
+bool raySphereIntersect(vec3 rayDir, vec3 rayPos, vec3 spherePos, float sphereRadius, inout RayHitInfo hitInfo);
+bool sphereBoxIntersection(vec3 boxLow, vec3 boxHigh, vec3 sphereCenter, float sphereRadius);
+bool pointInSphere(vec3 point, vec3 sphereCenter, float sphereRadius);
+bool pointInBox(vec3 point, vec3 boxLow, vec3 boxHigh);
+
+/*
+clones b and stores it in a
+*/
+void copyHitInfo(inout RayHitInfo a, RayHitInfo b)
+{
+	a.rayDirection = b.rayDirection;
+	a.rayPosition = b.rayPosition;
+	
+	a.min = b.min;
+	a.max = b.max;
+	
+	a.tmin = b.tmin;
+	a.tmax = b.tmax;
+	
+	a.txmin = b.txmin;
+	a.txmax = b.txmax;
+	a.tymin = b.tymin;
+	a.tymax = b.tymax;
+	a.tzmin = b.tzmin;
+	a.tzmax = b.tzmax;
+}
+
+void computeMinMax(vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo)
+{
+	hitInfo.rayDirection = rayDir;
+	hitInfo.rayPosition = rayPos;
+	
+	hitInfo.min.x = rayPos.x + hitInfo.tmin*rayDir.x;
+	hitInfo.min.y = rayPos.y + hitInfo.tmin*rayDir.y;
+	hitInfo.min.z = rayPos.z + hitInfo.tmin*rayDir.z;
+
+	hitInfo.max.x = rayPos.x + hitInfo.tmax*rayDir.x;
+	hitInfo.max.y = rayPos.y + hitInfo.tmax*rayDir.y;
+	hitInfo.max.z = rayPos.z + hitInfo.tmax*rayDir.z;
+}
+
+int getSmallestT( RayHitInfo hitInfo )
+{
+	if(hitInfo.txmin <= hitInfo.tymin)
+	{
+		if(hitInfo.txmin <= hitInfo.tzmin)
+		{
+			return 0;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+	else
+	{
+		if(hitInfo.tymin <= hitInfo.tzmin)
+		{
+			return 1;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+}
+
+int getLargestT( RayHitInfo hitInfo )
+{
+	if(hitInfo.txmax <= hitInfo.tymax)
+	{
+		if(hitInfo.txmax <= hitInfo.tzmax)
+		{
+			return 0;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+	else
+	{
+		if(hitInfo.tymax <= hitInfo.tzmax)
+		{
+			return 1;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+}
+
+void swap(inout float tmin, inout float tmax)
+{
+	float temp;
+
+	temp = tmin;
+	tmin = tmax;
+	tmax = temp;
+}
+
+bool rayBoxIntersect(vec3 rayDir, vec3 rayPos, vec3 min, vec3 max, inout RayHitInfo hitInfo)
+{
+	float tmin,tmax;
+	if(rayDir.x == 0.0)
+	{
+		tmin = MIN_FLOAT;
+		tmax = MAX_FLOAT;
+	}
+	else
+	{
+		tmin = (min.x - rayPos.x) / rayDir.x;
+		tmax = (max.x - rayPos.x) / rayDir.x;
+		if(tmin > tmax)
+		{
+			swap(tmin,tmax);
+		}
+	}
+	hitInfo.txmin = tmin;
+	hitInfo.txmax = tmax;
+	
+	float tymin,tymax;
+	if(rayDir.y == 0.0)
+	{
+		tymin = MIN_FLOAT;
+		tymax = MAX_FLOAT;
+	}
+	else
+	{
+		tymin = (min.y - rayPos.y) / rayDir.y;
+		tymax = (max.y - rayPos.y) / rayDir.y;
+		if(tymin > tymax)
+		{
+			swap(tymin, tymax);
+		}
+	}
+	hitInfo.tymin = tymin;
+	hitInfo.tymax = tymax;
+	
+	if( (tmin >= tymax) || (tymin >= tmax) )
+		return false;
+	
+	if( tymin > tmin)
+		tmin = tymin;
+	if(tymax < tmax)
+		tmax = tymax;
+		
+	float tzmin,tzmax;
+	if(rayDir.z == 0.0)
+	{
+		tzmin = MIN_FLOAT;
+		tzmax = MAX_FLOAT;
+	}
+	else
+	{
+		tzmin = ( min.z - rayPos.z ) / rayDir.z;
+		tzmax = ( max.z - rayPos.z ) / rayDir.z;
+		if(tzmin > tzmax)
+		{
+			swap(tzmin, tzmax);
+		}
+	}
+	hitInfo.tzmin = tzmin;
+	hitInfo.tzmax = tzmax;
+	
+	if( (tmin >= tzmax) || (tzmin >= tmax))
+		return false;
+	
+	if(tzmin > tmin)
+		tmin = tzmin;
+	if(tzmax < tmax)
+		tmax = tzmax;
+	
+	hitInfo.tmin = tmin;
+	hitInfo.tmax = tmax;
+	
+	computeMinMax(rayDir, rayPos, hitInfo);
+	
+	return true;
+}
+
+bool raySphereIntersect(vec3 rayDir, vec3 rayPos, vec3 spherePos, float sphereRadius, inout RayHitInfo hitInfo)
+{
+	vec3 l = spherePos - rayPos;
+	float s = dot(l,rayDir);
+	float l2 = dot(l,l);
+
+	float r2 = sphereRadius*sphereRadius;
+	if(s<0 && l2 > r2)
+		return false;
+
+	float m2 = l2 - s*s;
+	if(m2 > r2)
+		return false;
+
+	float q = sqrt(r2 - m2);
+	float t;
+	if(l2 > r2)
+		t = s - q;
+	else
+		t = s + q;
+
+	hitInfo.tmin = t;
+	return true;
+}
+
+bool rayTriangleIntersect(Face_vertex face, vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo)
+{
+	vec3 E1 = vec3(face.vertex2) - vec3(face.vertex1);
+	vec3 E2 = vec3(face.vertex3) - vec3(face.vertex1);
+	vec3 T = rayPos - vec3(face.vertex1);
+	vec3 Q = cross(T,E1);
+	vec3 P = cross(rayDir, E2);
+	
+	float det = (dot(P,E1));
+	float detInv = 1.0/det;
+	float u = dot(P,T)*detInv;
+	if( u < 0.0 || u > 1.0 )
+		return false;
+	
+	float v = dot(Q,rayDir)*detInv;
+	if( v < 0.0 || u > 1.0)
+		return false;
+	
+	if( u + v > 1.0)
+		return false;
+	
+	float t = dot(Q,E2)*detInv;
+
+	
+	hitInfo.rayDirection = rayDir;
+	hitInfo.rayPosition = rayPos;
+
+	float tmin = dot(E2,Q)*detInv;
+	vec3 hit = rayPos + tmin*rayDir;
+	/*vec4 hit = face.vertex1*(1-u-v) + u*face.vertex2 + v*face.vertex3;*/
+
+	float txmin = hit.x - rayPos.x;
+	float tymin = hit.y - rayPos.y;
+	float tzmin = hit.z - rayPos.z;
+
+	hitInfo.min = vec4(hit,1.0);
+	hitInfo.tmin = tmin;
+	hitInfo.txmin = txmin;
+	hitInfo.tymin = tymin;
+	hitInfo.tzmin = tzmin;
+	
+	return true;
+}
+
+void transformRay(inout vec3 rayDir, inout vec3 rayPos)
+{
+	vec4 rayPosTransformed = matrixMult(modelViewInverseMatrix, vec4(rayPos,1.0));
+	vec4 rayDirTransformed = matrixMult(modelViewInverseMatrix, vec4(rayDir, 0.0));
+	rayDir = vec3(rayDirTransformed);
+	rayPos = vec3(rayPosTransformed);
+}
+
+bool sphereBoxIntersection(vec3 boxLow, vec3 boxHigh, vec3 sphereCenter, float sphereRadius)
+{
+	float r2 = sphereRadius*sphereRadius;
+	float dmin = 0.0;
+	
+	if( sphereCenter.x < boxLow.x)
+	{
+		dmin += pow(sphereCenter.x - boxLow.x, 2.0);
+	}
+	else if(sphereCenter.x > boxHigh.x)
+	{
+		dmin += pow(sphereCenter.x - boxHigh.x, 2.0);
+	}
+
+
+	if( sphereCenter.y < boxLow.y)
+	{
+		dmin += pow(sphereCenter.y - boxLow.y, 2.0);
+	}
+	else if(sphereCenter.y > boxHigh.y)
+	{
+		dmin += pow(sphereCenter.y - boxHigh.y,2.0);
+	}
+
+
+	if( sphereCenter.z < boxLow.z)
+	{
+		dmin += pow(sphereCenter.z - boxLow.z, 2.0);
+	}
+	else if(sphereCenter.z > boxHigh.z)
+	{
+		dmin += pow(sphereCenter.z - boxHigh.z, 2.0);
+	}
+
+	return dmin <= r2;
+}
+bool pointInSphere(vec3 point, vec3 sphereCenter, float sphereRadius)
+{
+	float dist = distance(point,sphereCenter);
+	if(dist < sphereRadius)
+		return true;
+	else
+		return false;
+}
+bool pointInBox(vec3 point, vec3 boxLow, vec3 boxHigh)
+{
+	if( point.x < boxLow.x && point.x > boxHigh.x)
+		return false;
+	if( point.y < boxLow.y && point.y > boxHigh.y)
+		return false;
+	if( point.z < boxLow.z && point.z > boxHigh.z)
+		return false;
+
+	return true;
+}

@@ -1,0 +1,72 @@
+uniform samplerBuffer radianceCacheTexture;
+uniform isamplerBuffer radianceCacheTextureLookup;
+uniform isamplerBuffer radiaceCacheVoxelTexture;
+
+uniform int numVoxelsPerDimension;
+uniform int numRadianceCaches;
+
+uniform int radianceCacheTexture_size;
+uniform int radianceCacheTextureLookup_size;
+uniform int radiaceCacheVoxelTexture_size;
+
+uniform vec4 cacheBoundsMin;
+uniform vec4 cacheBoundsMax;
+
+vec3 getRadianceCachePosition(int cIndex);
+vec3 getRadianceCacheNormal(int cIndex);
+float getRadianceCacheRadiance(int cIndex);
+
+int getRadianceCacheTextureLookupStartingIndex(int cIndex);
+int getRadianceCacheTextureLookupNumCaches(int cIndex);
+
+int getVoxelCacheLookup(int cIndex);
+
+vec3 getRadianceCachePosition(int cIndex)
+{
+	int texIndex = cIndex*radianceCacheTexture_size;
+	vec4 fetch = texelFetch(radianceCacheTexture,texIndex);
+	return vec3(fetch);
+}
+
+vec3 getRadianceCacheNormal(int cIndex)
+{
+	int texIndex = cIndex*radianceCacheTexture_size;
+	vec4 fetch = texelFetch(radianceCacheTexture ,texIndex + 1);
+	return vec3(fetch);
+}
+
+float getRadianceCacheRadiance(int cIndex)
+{
+	int texIndex = cIndex*radianceCacheTexture_size;
+	vec4 fetch = texelFetch(radianceCacheTexture,texIndex + 1);
+	return fetch.w;
+}
+
+int getRadianceCacheTextureLookupStartingIndex(int cIndex)
+{
+	int texIndex = cIndex*radianceCacheTextureLookup_size;
+	ivec4 fetch = texelFetch(radianceCacheTextureLookup,texIndex);
+	return fetch.x;	
+}
+int getRadianceCacheTextureLookupNumCaches(int cIndex)
+{
+	int texIndex = cIndex*radianceCacheTextureLookup_size;
+	ivec4 fetch = texelFetch(radianceCacheTextureLookup,texIndex);
+	return fetch.y;
+}
+
+int getVoxelCacheLookup(int vIndex)
+{
+	int texIndex = vIndex*radiaceCacheVoxelTexture_size;
+	ivec4 fetch = texelFetch(radiaceCacheVoxelTexture,texIndex);
+	return fetch.x;	
+}
+
+RadianceCache getCache(int cIndex)
+{
+	RadianceCache rc;
+	rc.position = getRadianceCachePosition(cIndex);
+	rc.normal = getRadianceCacheNormal(cIndex);
+	rc.illum = getRadianceCacheRadiance(cIndex);
+	return rc;
+}

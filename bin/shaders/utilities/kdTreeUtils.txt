@@ -1,0 +1,718 @@
+uniform isamplerBuffer treeTextureInt;
+uniform samplerBuffer treeTextureFloat;
+uniform samplerBuffer photonList;
+uniform int numPhotons;
+
+uniform int treeTexutreFloatDataSize;
+uniform int treeTexutreIntDataSize;
+uniform int photonDataSize;
+
+const int NODE_QUEUE_MAX_SIZE = 150;
+const int K_NEAREST_PHOTONS = 40;
+
+struct Photon
+{
+	float pos[3];
+	float dir[3];
+	float illum;
+};
+
+struct TreeNode
+{
+	vec3 boundsLow;
+	vec3 boundsHigh;
+	int index;
+	int child0;
+	int child1;
+	int sortOn;
+	int photonIndex;
+};
+
+float getTreeMaxX(int tIndex);
+float getTreeMaxY(int tIndex);
+float getTreeMaxZ(int tIndex);
+float getTreeMinX(int tIndex);
+float getTreeMinY(int tIndex);
+float getTreeMinZ(int tIndex);
+
+int getTreeIndex(int tIndex);
+int getTreeChild0(int tIndex);
+int getTreeChild1(int tIndex);
+int getTreeSortOn(int tIndex);
+int getphotonIndex(int tIndex);
+int getNumTreePhotons(int tIndex);
+int getTreePhotonStartIndex(int tIndex);
+int getTreePhotonEndIndex(int tIndex);
+int getTreeFaceIndex(int tIndex);
+
+float getPhotonX(int tIndex);
+float getPhotonY(int tIndex);
+float getPhotonZ(int tIndex);
+float getPhotonDirX(int tIndex);
+float getPhotonDirY(int tIndex);
+float getPhotonDirZ(int tIndex);
+float getPhotonIllum(int tIndex);
+
+void getPhoton(int tIndex, inout Photon p);
+void getTreeNode(int nodeIndex, inout TreeNode tn);
+void getNextNTreeode(TreeNode base,inout TreeNode child, vec3 point);
+bool isLeaf(TreeNode t);
+bool isLeaf(int nodeIndex);
+
+void knnSearch(vec3 p);
+float photonIrradiace(vec3 p, vec3 n);
+void insertPhoton(int photonIndex, float photonDist);
+void insertPhoton(int photonIndex, vec3 position);
+float getMaxPhotonRadius();
+
+void deleteQueueIndex(int qIndex);
+void enqueue(int v);
+void deleteNodeQueue();
+void expandQueue();
+void expandQueue(vec3 sphereCenter, float radius);
+void insertPhotonsFromQueue(vec3 p);
+bool nodeSphereIntersect(int node, vec3 sphereCenter, float sphereRadius);
+
+void getNextTreeNode(inout TreeNode base, inout TreeNode child, vec3 point);
+int getNextTreeNode(int base, vec3 point);
+int getAdjacentNode(int base, vec3 p);
+
+int getTreeNode(int base, vec3 p, int minPhotons);
+
+float getTreeMaxX(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeTextureFloat,texIndex);
+	return fetch.x;
+}
+
+float getTreeMaxY(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeTextureFloat,texIndex);
+	return fetch.y;
+}
+
+float getTreeMaxZ(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeTextureFloat,texIndex);
+	return fetch.z;
+}
+
+float getTreeMinX(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeTextureFloat,texIndex);
+	return fetch.w;
+}
+
+float getTreeMinY(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeTextureFloat,texIndex+1);
+	return fetch.x;
+}
+
+float getTreeMinZ(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeTextureFloat,texIndex+1);
+	return fetch.y;
+}
+
+
+
+int getTreeIndex(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex);
+	return fetch.x;
+}
+int getTreeChild0(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex);
+	return fetch.y;
+}
+int getTreeChild1(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex);
+	return fetch.z;
+}
+int getTreeSortOn(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex);
+	return fetch.w;
+}
+int getPhotonIndex(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex + 1);
+	return fetch.x;
+}
+int getNumTreePhotons(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex + 1);
+	return fetch.y;
+}
+int getTreePhotonStartIndex(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex + 1);
+	return fetch.z;
+}
+int getTreePhotonEndIndex(int tIndex)
+{
+	int texIndex = tIndex*treeTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeTextureInt,texIndex + 1);
+	return fetch.w;
+}
+
+
+float getPhotonX(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.x;
+}
+float getPhotonY(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.y;
+}
+float getPhotonZ(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.z;
+}
+float getPhotonDirX(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.w;
+}
+float getPhotonDirY(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.x;
+}
+float getPhotonDirZ(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.y;
+}
+float getPhotonIllum(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.z;
+}
+
+void getPhoton(int tIndex, inout Photon p)
+{
+	p.pos[0] = getPhotonX(tIndex);
+	p.pos[1] = getPhotonY(tIndex);
+	p.pos[2] = getPhotonZ(tIndex);
+
+	p.dir[0] = getPhotonDirX(tIndex);
+	p.dir[1] = getPhotonDirY(tIndex);
+	p.dir[2] = getPhotonDirZ(tIndex);
+
+	p.illum = getPhotonIllum(tIndex);
+}
+
+void getTreeNode(int nodeIndex, inout TreeNode tn)
+{
+	tn.boundsLow.x = getTreeMinX(nodeIndex);
+	tn.boundsLow.y = getTreeMinY(nodeIndex);
+	tn.boundsLow.z = getTreeMinZ(nodeIndex);
+
+	tn.boundsHigh.x = getTreeMaxX(nodeIndex);
+	tn.boundsHigh.y = getTreeMaxY(nodeIndex);
+	tn.boundsHigh.z = getTreeMaxZ(nodeIndex);
+
+	tn.index = getTreeIndex(nodeIndex);
+	tn.child0 = getTreeChild0(nodeIndex);
+	tn.child1 = getTreeChild1(nodeIndex);
+	tn.sortOn = getTreeSortOn(nodeIndex);
+	tn.photonIndex = getPhotonIndex(nodeIndex);
+}
+
+void getNextTreeNode(inout TreeNode base, inout TreeNode child, vec3 point)
+{
+	if(base.sortOn == 0)
+	{
+		float planeX = getTreeMaxX(base.child0);
+		if(point.x - planeX > 0.0)
+			getTreeNode(base.child1,child);
+		
+		else
+			getTreeNode(base.child0,child);
+
+		return;
+	}
+	else if(base.sortOn == 1)
+	{
+		float planeY = getTreeMaxY(base.child0);
+		if(point.y - planeY > 0.0)
+			getTreeNode(base.child1,child);
+		
+		else
+			getTreeNode(base.child0,child);
+
+		return;
+	}
+	else if(base.sortOn == 2)
+	{
+		float planeZ = getTreeMaxZ(base.child0);
+		if(point.z - planeZ > 0.0)
+			getTreeNode(base.child1,child);
+		
+		else
+			getTreeNode(base.child0,child);
+
+		return;
+	}
+}
+
+int getNextTreeNode(int base, vec3 point)
+{
+	int baseSortOn = getTreeSortOn(base);
+	int baseChild0 = getTreeChild0(base);
+	int baseChild1 = getTreeChild1(base);
+	if(baseSortOn == 0)
+	{
+		float planeX = getTreeMaxX(baseChild0);
+		if(point.x - planeX > 0.0)
+			return baseChild1;
+		
+		else
+			return baseChild0;
+	}
+	else if(baseSortOn == 1)
+	{
+		float planeY = getTreeMaxY(baseChild0);
+		if(point.y - planeY > 0.0)
+			return baseChild1;
+		
+		else
+			return baseChild0;
+	}
+	else if(baseSortOn == 2)
+	{
+		float planeZ = getTreeMaxZ(baseChild0);
+		if(point.z - planeZ > 0.0)
+			return baseChild1;
+		
+		else
+			return baseChild0;
+	}
+	return -1;
+}
+
+bool isLeaf(TreeNode t)
+{
+	if(t.child0 == -1 && t.child1 == -1)
+		return true;
+	else
+		return false;
+}
+
+bool isLeaf(int nodeIndex)
+{
+	int child1 = getTreeChild1(nodeIndex);
+	int child0 = getTreeChild0(nodeIndex);
+	if(child1 == -1 && child0 == -1)
+		return true;
+	else
+		return false;
+}
+
+int getNumChildrenPhotons(inout TreeNode base, int numBasePhotons, vec3 point)
+{
+	int numPhotonsHigh = int(ceil(float(numBasePhotons)/2.0));
+	int numPhotonsLow = int(floor(float(numBasePhotons)/2.0));
+	if(base.sortOn == 0)
+	{
+		float planeX = getTreeMaxX(base.child0);
+		if(point.x - planeX > 0.0)
+			return numPhotonsHigh;
+		else
+			return numPhotonsLow;
+	}
+	else if(base.sortOn == 1)
+	{
+		float planeY = getTreeMaxY(base.child0);
+		if(point.y - planeY > 0.0)
+			return numPhotonsHigh;
+		else
+			return numPhotonsLow;
+	}
+	else if(base.sortOn == 2)
+	{
+		float planeZ = getTreeMaxZ(base.child0);
+		if(point.z - planeZ > 0.0)
+			return numPhotonsHigh;
+		else
+			return numPhotonsLow;
+	}
+	return 0;
+}
+
+int nodeQueue[NODE_QUEUE_MAX_SIZE];
+int nqIndex = 0;
+void enqueue(int v)
+{
+	if(v >= 0)
+	{
+		nodeQueue[nqIndex] = v;
+		nqIndex++;
+	}
+}
+
+void deleteQueueIndex(int qIndex)
+{
+	if(qIndex >= NODE_QUEUE_MAX_SIZE || qIndex < 0)
+		return;
+	
+	for(int i = qIndex; i < NODE_QUEUE_MAX_SIZE - 1; i++)
+	{
+		nodeQueue[i] = nodeQueue[i + 1];
+	}
+	nqIndex--;
+}
+
+void deleteNodeQueue()
+{
+	nqIndex = 0;
+}
+
+void expandQueue()
+{
+	for(int i=0; i<nqIndex; i++)
+	{
+		int nodeIndex = nodeQueue[i];
+		if(getTreeChild1(nodeIndex) != -1 || getTreeChild0(nodeIndex) != -1)
+		{
+			if(getTreeChild0(nodeIndex) != -1)
+			{
+				enqueue(getTreeChild0(nodeIndex));
+			}
+			if(getTreeChild1(nodeIndex) != -1)
+			{
+				enqueue(getTreeChild1(nodeIndex));
+			}
+			deleteQueueIndex(i);
+			i--;
+		}
+
+	}
+}
+
+void expandQueue(vec3 sphereCenter, float radius)
+{
+	for(int i=0; i<nqIndex; i++)
+	{
+		int nodeIndex = nodeQueue[i];
+		if(nodeSphereIntersect(nodeIndex, sphereCenter, radius))
+		{
+			if(getTreeChild1(nodeIndex) != -1 || getTreeChild0(nodeIndex) != -1)
+			{
+				if(getTreeChild0(nodeIndex) != -1)
+				{
+					enqueue(getTreeChild0(nodeIndex));
+				}
+				if(getTreeChild1(nodeIndex) != -1)
+				{
+					enqueue(getTreeChild1(nodeIndex));
+				}
+				deleteQueueIndex(i);
+				i--;
+			}
+		}
+		else
+		{
+			deleteQueueIndex(i);
+			i--;
+		}
+
+	}
+}
+
+void insertPhotonsFromQueue(vec3 p)
+{
+	for(int i=0; i<nqIndex; i++)
+	{
+		int nodeIndex = nodeQueue[i];
+		if(isLeaf(nodeIndex))
+		{
+			insertPhoton(getPhotonIndex(nodeIndex), p);
+		}
+	}
+}
+
+
+int getAdjacentNode(int base, vec3 point)
+{
+	int baseSortOn = getTreeSortOn(base);
+	int baseChild0 = getTreeChild0(base);
+	int baseChild1 = getTreeChild1(base);
+	if(baseSortOn == 0)
+	{
+		float planeX = getTreeMaxX(baseChild0);
+		if(point.x - planeX >= 0.0)
+			return baseChild0;
+		
+		else
+			return baseChild1;
+	}
+	else if(baseSortOn == 1)
+	{
+		float planeY = getTreeMaxY(baseChild0);
+		if(point.y - planeY >= 0.0)
+			return baseChild0;
+		
+		else
+			return baseChild1;
+	}
+	else if(baseSortOn == 2)
+	{
+		float planeZ = getTreeMaxZ(baseChild0);
+		if(point.z - planeZ >= 0.0)
+			return baseChild0;
+		
+		else
+			return baseChild1;
+	}
+	return -1;
+}
+
+int insertedPhotons = 0;
+int photonIndexVec[K_NEAREST_PHOTONS];
+float distanceVec[K_NEAREST_PHOTONS];
+
+void insertPhoton(int photonIndex, float photonDist)
+{
+	int insertIndex = 0;
+	for(insertIndex=0; insertIndex<insertedPhotons; insertIndex++)
+	{
+		if(photonDist < distanceVec[insertIndex])
+			break;
+	}
+	if( insertIndex >= K_NEAREST_PHOTONS)
+		return;
+
+	/*insertIndex = min(insertIndex++,K_NEAREST_PHOTONS);*/
+
+	for(int i=K_NEAREST_PHOTONS - 1; i> insertIndex; i--)
+	{
+		photonIndexVec[i] = photonIndexVec[i - 1];
+		distanceVec[i] = distanceVec[i - 1];
+	}
+	photonIndexVec[insertIndex] = photonIndex;
+	distanceVec[insertIndex] = photonDist;
+
+	insertedPhotons = insertedPhotons + 1;
+	insertedPhotons = min(insertedPhotons,K_NEAREST_PHOTONS);
+}
+
+float getMaxPhotonRadius()
+{
+	if(insertedPhotons == 0 || insertedPhotons > K_NEAREST_PHOTONS)
+		return 0.0;
+	else
+		return distanceVec[insertedPhotons - 1];
+}
+
+void insertPhoton(int photonIndex, vec3 position)
+{
+	Photon photon;
+	getPhoton(photonIndex, photon);
+	float dist = length(vec3(photon.pos[0],photon.pos[1],photon.pos[2]) - position);
+	insertPhoton(photonIndex,dist);
+}
+
+void initVectors()
+{
+	for(int i=0; i < NODE_QUEUE_MAX_SIZE; i++)
+	{
+		nodeQueue[i] = -1;
+	}
+
+	for(int i=0; i<K_NEAREST_PHOTONS; i++)
+	{
+		distanceVec[i] = 99999.0;
+		photonIndexVec[i]  = -1;
+	}
+}
+
+int getTreeNode(int base, vec3 p, int minPhotons)
+{
+	if(minPhotons <= 0)
+		return base;
+
+	int baseNode = base;
+	int childNode = base;;
+	int numPhotonsInTree = getNumTreePhotons(base);
+
+	while(numPhotonsInTree > minPhotons)
+	{
+		baseNode = childNode;
+		childNode = getNextTreeNode(baseNode,p);
+		numPhotonsInTree = getNumTreePhotons(childNode);
+	}
+	return baseNode;
+}
+
+bool nodeSphereIntersect(int node, vec3 sphereCenter, float sphereRadius)
+{
+	vec3 boxHigh = vec3(getTreeMaxX(node),getTreeMaxY(node),getTreeMaxZ(node));
+	vec3 boxLow = vec3(getTreeMinX(node),getTreeMinY(node),getTreeMinZ(node));
+	return sphereBoxIntersection(boxLow, boxHigh, sphereCenter, sphereRadius);
+}
+
+int getBaseNode(vec3 p)
+{
+	return 0;
+	int baseNode = 0;
+	int child = 0;
+	int numPhotonsInTree = getNumTreePhotons(child);
+	float deltaDist = 0.25;
+
+	while(numPhotonsInTree > K_NEAREST_PHOTONS)
+	{
+		baseNode = child;
+
+		vec3 bHigh;
+		vec3 bLow;
+		bHigh.x = getTreeMaxX(baseNode);
+		bHigh.y = getTreeMaxY(baseNode);
+		bHigh.z = getTreeMaxZ(baseNode);
+
+		bLow.x = getTreeMinX(baseNode);
+		bLow.y = getTreeMinY(baseNode);
+		bLow.z = getTreeMinZ(baseNode);
+
+		vec3 distHigh = bHigh - p;
+		distHigh = distHigh/(bHigh - bLow);
+		vec3 distLow = bLow - p;
+		distLow = distLow/(bHigh - bLow);
+
+		if( abs(distHigh.x) < deltaDist  || abs(distHigh.y) < deltaDist || abs(distHigh.z) < deltaDist || abs(distLow.x) < deltaDist  || abs(distLow.y) < deltaDist || abs(distLow.z) < deltaDist)
+			return baseNode;
+
+		child = getNextTreeNode(baseNode,p);
+		numPhotonsInTree = getNumTreePhotons(child);
+
+	}
+	return baseNode;
+}
+
+void knnSearch(vec3 p)
+{
+	initVectors();
+	int baseNode = getBaseNode(p);
+	/*
+
+	for(int i=0; i < numPhotons; i++)
+	{
+		insertPhoton(i,p);
+	}
+
+	return;
+
+	int currentTreeIndex = 0;
+	int baseNode;
+	
+	int child = currentTreeIndex;
+	int numPhotonsInTree = getNumTreePhotons(child);
+	int tsIndex = 0;
+
+	while(numPhotonsInTree > K_NEAREST_PHOTONS)
+	{
+		baseNode = child;
+		int child0 = getTreeChild0(baseNode);
+		child = getNextTreeNode(baseNode,p);
+		
+		float splittingPlane;
+		float dist;
+		int treeSortOn = getTreeSortOn(child);
+		float deltaDist = 0.1;
+		if(treeSortOn == 0)
+		{
+			splittingPlane = getTreeMaxX(child0);
+			dist = abs(splittingPlane - p.x);
+			float childWidth = getTreeMaxX(child) - getTreeMinX(child);
+			if(dist < deltaDist*childWidth)
+				break;
+		}
+		else if(treeSortOn == 1)
+		{
+			splittingPlane = getTreeMaxY(child0);
+			dist = abs(splittingPlane - p.y);
+			float childWidth = getTreeMaxY(child) - getTreeMinY(child);
+			if(dist < deltaDist*childWidth)
+				break;
+		}
+		else if(treeSortOn == 2)
+		{
+			splittingPlane = getTreeMaxZ(child0);
+			dist = abs(splittingPlane - p.z);
+			float childWidth = getTreeMaxZ(child) - getTreeMinZ(child);
+			if(dist < deltaDist*childWidth)
+				break;
+		}
+
+		numPhotonsInTree = getNumTreePhotons(child);
+		tsIndex++;
+	}
+	tsIndex--;
+
+	*/
+
+	int startIndex = getTreePhotonStartIndex(baseNode);
+	int endIndex = getTreePhotonEndIndex(baseNode);
+
+	for(int i=startIndex; i < endIndex; i++)
+	{
+		insertPhoton(i,p);
+	}
+
+}
+
+
+float photonIrradiace(vec3 p, vec3 n)
+{
+	knnSearch(p);
+
+	float irr = 0.0;
+	Photon photon;
+	float r = getMaxPhotonRadius();
+	float k = 1.1;
+	vec3 photonDir;
+
+	for(int i=0; i <insertedPhotons; i++)
+	{
+		getPhoton(photonIndexVec[i], photon);
+		float dist = distanceVec[i];
+		float wp = (1.0 - (dist/(k*r)));
+		photonDir = vec3(photon.dir[0],photon.dir[1],photon.dir[2]);
+		irr = irr + wp*photon.illum*dot(-photonDir,n);
+	}
+	
+	float area = r*r*3.1415926;
+	irr = irr / (area*(1.0 - (2.0/(3.0*k))));
+	irr = max(0,irr);
+	irr = min(irr,1.0);
+
+
+	return irr;
+}

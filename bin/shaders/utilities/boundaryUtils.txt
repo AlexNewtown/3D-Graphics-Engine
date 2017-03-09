@@ -1,0 +1,221 @@
+uniform isamplerBuffer boundaryTexInt;
+uniform int boundaryTexIntSize;
+uniform samplerBuffer boundaryTexFloat;
+uniform int boundaryTexFloatSize;
+
+int getBoundaryIndex(int bIndex);
+int getBoundaryChild0Index(int bIndex);
+int getBoundaryChild1Index(int bIndex);
+int getBoundaryType(int bIndex);
+
+float getBoundaryRadius(int bIndex);
+vec3 getBoundaryPosition(int bIndex);
+vec3 getBoundaryHigh(int bIndex);
+vec3 getBoundaryLow(int bIndex);
+float getSplittingPlane(int bIndex);
+bool boundaryRayTrace(vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo);
+
+const int BOUNDARY_TYPE_AABB = 1;
+const int BOUNDARY_TYPE_SPHERE = 0;
+
+int getBoundaryIndex(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexIntSize;
+	ivec4 fetch = texelFetch(boundaryTexInt,texIndex);
+	return fetch.x;
+}
+
+int getBoundaryChild0Index(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexIntSize;
+	ivec4 fetch = texelFetch(boundaryTexInt,texIndex);
+	return fetch.y;
+}
+
+int getBoundaryChild1Index(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexIntSize;
+	ivec4 fetch = texelFetch(boundaryTexInt,texIndex);
+	return fetch.z;
+}
+
+int getBoundaryType(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexIntSize;
+	ivec4 fetch = texelFetch(boundaryTexInt,texIndex);
+	return fetch.w;
+}
+
+
+
+float getBoundaryRadius(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexFloatSize;
+	vec4 fetch = texelFetch(boundaryTexFloat,texIndex);
+	return fetch.x;
+}
+vec3 getBoundaryPosition(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexFloatSize;
+	vec4 fetch = texelFetch(boundaryTexFloat,texIndex);
+	return vec3(fetch.y,fetch.z,fetch.w);
+}
+vec3 getBoundaryHigh(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexFloatSize;
+	vec4 fetch = texelFetch(boundaryTexFloat,texIndex+1);
+	return vec3(fetch);
+}
+vec3 getBoundaryLow(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexFloatSize;
+	vec4 fetch = texelFetch(boundaryTexFloat,texIndex+2);
+	return vec3(fetch);
+}
+
+float getSplittingPlane(int bIndex)
+{
+	int texIndex = bIndex*boundaryTexFloatSize;
+	vec4 fetch = texelFetch(boundaryTexFloat,texIndex+1);
+	return fetch.w;
+}
+const int maxTreeHeight = 100;
+bool boundaryRayTrace(vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo)
+{
+/*
+	start at the top of the tree
+
+*/
+	bool hit = false;
+	int treeStack[maxTreeHeight];
+	int treeStackIndex = 0;
+	int currentStackPosition = 0;
+	treeStack[treeStackIndex] = 0;
+
+	
+	vec3 minBoundary = getBoundaryLow(treeStack[currentStackPosition]);
+	vec3 maxBoundary = getBoundaryHigh(treeStack[currentStackPosition]);
+	RayHitInfo minHit;
+
+	if(rayBoxIntersect(rayDir, rayPos, minBoundary, maxBoundary, hitInfo))
+	{
+
+		minHit = hitInfo;
+		while(true)
+		{
+			int currentNode = treeStack[currentStackPosition];
+			int child0 = getBoundaryChild0Index(currentNode);
+			int child1 = getBoundaryChild1Index(currentNode);
+
+
+			if(child0 != -1)
+			{
+				int boundaryType = getBoundaryType(child0);
+				if(boundaryType == BOUNDARY_TYPE_AABB)
+				{
+					minBoundary = getBoundaryLow(child0);
+					maxBoundary = getBoundaryHigh(child0);
+					if(rayBoxIntersect(rayDir, rayPos, minBoundary, maxBoundary, hitInfo))
+					{
+						treeStackIndex = treeStackIndex + 1;
+						treeStack[treeStackIndex] = child0;
+
+						int child00 = getBoundaryChild0Index(child0);
+						int child01 = getBoundaryChild1Index(child0);
+							
+						if(child00 == -1 && child01 == -1)
+						{
+							if(hitInfo.tmin < minHit.tmin)
+							{
+								copyHitInfo(minHit,hitInfo); 
+								hit = true;
+							}
+						}
+
+					}
+				}
+				else if(boundaryType == BOUNDARY_TYPE_SPHERE && false)
+				{
+					vec3 spherePos = getBoundaryPosition(child0);
+					float sphereRadius = getBoundaryRadius(child0);
+					if(raySphereIntersect(rayDir,rayPos,spherePos,sphereRadius,hitInfo))
+					{
+						treeStackIndex = treeStackIndex + 1;
+						treeStack[treeStackIndex] = child0;
+
+						int child00 = getBoundaryChild0Index(child0);
+						int child01 = getBoundaryChild1Index(child0);
+							
+						if(child00 == -1 && child01 == -1)
+						{
+							if(hitInfo.tmin < minHit.tmin)
+							{
+								copyHitInfo(minHit,hitInfo); 
+								hit = true;
+							}
+						}
+					}
+
+				}
+			}
+
+			if(child1 != -1)
+			{
+				int boundaryType = getBoundaryType(child1);
+				if(boundaryType == BOUNDARY_TYPE_AABB)
+				{
+					minBoundary = getBoundaryLow(child1);
+					maxBoundary = getBoundaryHigh(child1);
+					if(rayBoxIntersect(rayDir, rayPos, minBoundary, maxBoundary, hitInfo))
+					{
+						treeStackIndex = treeStackIndex + 1;
+						treeStack[treeStackIndex] = child1;
+
+						int child10 = getBoundaryChild0Index(child1);
+						int child11 = getBoundaryChild1Index(child1);
+							
+						if(child10 == -1 && child11 == -1)
+						{
+							if(hitInfo.tmin < minHit.tmin)
+							{
+								copyHitInfo(minHit,hitInfo); 
+								hit = true;
+							}
+						}
+
+					}
+				}
+				else if(boundaryType == BOUNDARY_TYPE_SPHERE && false)
+				{
+					vec3 spherePos = getBoundaryPosition(child1);
+					float sphereRadius = getBoundaryRadius(child1);
+					if(raySphereIntersect(rayDir,rayPos,spherePos,sphereRadius,hitInfo))
+					{
+						treeStackIndex = treeStackIndex + 1;
+						treeStack[treeStackIndex] = child1;
+
+						int child10 = getBoundaryChild0Index(child1);
+						int child11 = getBoundaryChild1Index(child1);
+							
+						if(child10 == -1 && child11 == -1)
+						{
+							if(hitInfo.tmin < minHit.tmin)
+							{
+								copyHitInfo(minHit,hitInfo);
+								hit = true;
+							}
+						}
+					}
+				}
+			}
+
+			if(currentStackPosition >= treeStackIndex)
+				break;
+			currentStackPosition++;	
+		}
+	}
+
+	if(hit)
+		copyHitInfo(hitInfo,minHit);
+	return hit;
+}

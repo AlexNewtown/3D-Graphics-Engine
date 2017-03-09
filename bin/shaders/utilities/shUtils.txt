@@ -1,0 +1,825 @@
+uniform samplerBuffer sampledBrdfSH;
+uniform samplerBuffer irradianceSH;
+uniform samplerBuffer irradianceVertexSH;
+uniform int shAccuracy;
+uniform int brdfN;
+
+int getBrdfIndexY(float phi, float theta);
+void toSpherical(vec3 dir, vec3 bX, vec3 bY, vec3 bZ, inout float phi, inout float theta);
+vec3 YpbprToRgb(vec3 ybr);
+
+int getOutIndexY(float phiOut, float thetaOut);
+int getOutIndexPb(float phiOut, float thetaOut);
+int getOutIndexPr(float phiOut, float thetaOut);
+
+int getBrdfIndexY(float phi, float theta);
+int getBrdfIndexPb(float phi, float theta);
+int getBrdfIndexPr(float phi, float theta);
+
+vec3 computeRadianceSH(int sampleIndex, vec3 cameraCoords, vec3 bX, vec3 bY, vec3 bZ);
+vec3 computeDiffuseRadiance(int sampleIndex);
+vec3 computeRadiance(int sampleIndex, vec3 cameraCoords, vec3 bX, vec3 bY, vec3 bZ);
+vec3 computeIrradiance(int sampleIndex);
+vec3 computeVertexIrradiance(int sampleIndex, vec3 cameraCoords, vec3 bX, vec3 bY, vec3 bZ);
+
+void computeSHCoefficient(float phi, float theta, int index, inout float real, inout float imag );
+
+void toSpherical(vec3 dir, vec3 bX, vec3 bY, vec3 bZ, inout float phi, inout float theta)
+{
+	float x = dot(bX, dir);
+	float y = dot(bY, dir);
+	float z = dot(bZ, dir);
+
+	phi = 3.14159265*0.5 - acos(y);
+	theta = atan(z, x);
+	theta = theta + 3.141592654;
+}
+
+vec3 YpbprToRgb(vec3 ybr)
+{
+	vec3 rgb;
+	rgb.x = ybr.x + 1.14*ybr.z;
+	rgb.y = ybr.x - 0.395*ybr.y - 0.581*ybr.z;
+	rgb.z = ybr.x - 2.032*ybr.y;
+	return rgb;
+}
+
+vec3 computeIrradiance(int sampleIndex)
+{
+	int index = sampleIndex*shAccuracy*2;
+
+	float sumY = 0.0;
+	float sumPb = 0.0;
+	float sumPr = 0.0;
+
+	for(int i=0; i<shAccuracy*2; i=i+2)
+	{
+		vec4 fetchReal = texelFetch(irradianceSH,index + i);
+		vec4 fetchImag = texelFetch(irradianceSH,index + i + 1);
+		sumY = sumY + sqrt(fetchReal.x*fetchReal.x + fetchImag.x*fetchImag.x);
+		sumPb = sumPb + sqrt(fetchReal.y*fetchReal.y + fetchImag.y*fetchImag.y);
+		sumPr = sumPr + sqrt(fetchReal.z*fetchReal.z + fetchImag.z*fetchImag.z);
+	}
+	return YpbprToRgb(vec3(sumY,sumPb,sumPr));
+}
+
+int getOutIndexY(float phiOut, float thetaOut)
+{
+	int phiOutIndex = int(floor(phiOut / (0.5*3.141592654 / (float(brdfN)))));
+	int thetaOutIndex = int(floor(thetaOut / (2 * 3.141592654 / ((float(brdfN) * 4)))));
+	int outIndex = phiOutIndex * 4 * brdfN * brdfN + thetaOutIndex;
+	return outIndex;
+}
+int getOutIndexPb(float phiOut, float thetaOut)
+{
+	int phiOutIndex = int(floor(phiOut / (0.5*3.141592654 / (float(brdfN) / 2))));
+	int thetaOutIndex = int(floor(thetaOut / (2 * 3.141592654 / (( float(brdfN) * 2)))));
+	int outIndex = brdfN*brdfN*4*shAccuracy + (phiOutIndex * brdfN + thetaOutIndex)*shAccuracy;
+	return outIndex;
+}
+int getOutIndexPr(float phiOut, float thetaOut)
+{
+	int phiOutIndex = int(floor(phiOut / (0.5*3.141592654 / ( float(brdfN) / 2))));
+	int thetaOutIndex = int(floor(thetaOut / (2 * 3.141592654 / (( float(brdfN) * 2)))));
+	int outIndex = brdfN*brdfN*4*shAccuracy + brdfN*brdfN*shAccuracy + (phiOutIndex * brdfN + thetaOutIndex)*shAccuracy;
+	return outIndex;
+}
+
+int sampleY[4];
+float sampleYWeight[4];
+void computeSamplesY(float phiOut, float thetaOut)
+{
+	int phiOutIndex_low = int(floor(phiOut / (0.5*3.141592654 / (float(brdfN)))));
+	int thetaOutIndex_low = int(floor(thetaOut / (2 * 3.141592654 / ((float(brdfN) * 4)))));
+
+	int phiOutIndex_high = int(floor(phiOut / (0.5*3.141592654 / (float(brdfN))))) + 1;
+	int thetaOutIndex_high = int(floor(thetaOut / (2 * 3.141592654 / ((float(brdfN) * 4))))) + 1;
+
+	float phiOut_low = float(phiOutIndex_low)*(0.5*3.141592654 / (float(brdfN)));
+	float phiOut_high = float(phiOutIndex_high)*(0.5*3.141592654 / (float(brdfN)));
+	float thetaOut_low = float(thetaOutIndex_low)*(2*3.141592654 / (float(brdfN*4)));
+	float thetaOut_high = float(thetaOutIndex_high)*(2*3.141592654 / (float(brdfN*4)));
+
+	float wPhiHigh = abs(phiOut_high - phiOut);
+	float wPhiLow = abs(phiOut_low - phiOut);
+	float wThetaHigh = abs(thetaOut_high - thetaOut);
+	float wThetaLow = abs(thetaOut_low - thetaOut);
+
+	float b = abs(phiOut_high - phiOut_low)*abs(thetaOut_high - thetaOut_low);
+
+	sampleY[0] = phiOutIndex_low * 4 * brdfN * brdfN + thetaOutIndex_low;
+	sampleY[1] = phiOutIndex_low * 4 * brdfN * brdfN + thetaOutIndex_high;
+	sampleY[2] = phiOutIndex_high * 4 * brdfN * brdfN + thetaOutIndex_low;
+	sampleY[3] = phiOutIndex_high * 4 * brdfN * brdfN + thetaOutIndex_high;
+
+	sampleYWeight[0] = (wThetaHigh*wPhiHigh)/b;
+	sampleYWeight[1] = (wThetaLow*wPhiHigh)/b;
+	sampleYWeight[2] = (wThetaHigh*wPhiLow)/b;
+	sampleYWeight[3] = (wThetaLow*wPhiLow)/b;
+
+}
+
+vec3 computeDiffuseRadiance(int sampleIndex)
+{
+	int outIndexY;
+	int outIndexPb;
+	int outIndexPr;
+	int irrIndex = sampleIndex*shAccuracy*2;
+	float sumY = 0.0;
+	float sumPb = 0.0;
+	float sumPr = 0.0;
+	vec3 fetchIrrReal;
+	vec3 fetchIrrImag;
+	vec3 fetchIrr = vec3(0.0,0.0,0.0);
+	for(int i=0; i<shAccuracy; i++)
+	{
+	
+		fetchIrrReal = vec3(texelFetch(irradianceSH,irrIndex + i*2));
+		fetchIrrImag = vec3(texelFetch(irradianceSH,irrIndex + i*2 + 1));
+		float a,b;
+
+		sumY = sumY + sqrt(fetchIrrReal.x*fetchIrrReal.x + fetchIrrImag.x*fetchIrrImag.x);
+		sumPb = sumPb + sqrt(fetchIrrReal.y*fetchIrrReal.y + fetchIrrImag.x*fetchIrrImag.y);
+		sumPr = sumPr + sqrt(fetchIrrReal.z*fetchIrrReal.z + fetchIrrImag.x*fetchIrrImag.z);
+		
+
+	}
+
+	return YpbprToRgb(vec3(sumY,sumPb,sumPr));
+}
+
+vec3 computeRadianceSH(int sampleIndex, vec3 cameraCoords, vec3 bX, vec3 bY, vec3 bZ)
+{
+	int outIndexY;
+	int outIndexPb;
+	int outIndexPr;
+	float phi;
+	float theta;
+
+	int irrIndex = sampleIndex*shAccuracy*2;
+
+	vec3 dir = normalize(-vec3(cameraCoords));
+	toSpherical(dir,bX,bY,bZ,phi,theta);
+
+	outIndexY = getBrdfIndexY(phi,theta);
+	outIndexPb = getBrdfIndexPb(phi,theta);
+	outIndexPr = getBrdfIndexPr(phi,theta);
+
+	float sumY = 0.0;
+	float sumPb = 0.0;
+	float sumPr = 0.0;
+	
+	vec2 fetchBrdfY;
+	vec2 fetchBrdfPb;
+	vec2 fetchBrdfPr;
+
+	vec3 fetchIrrReal;
+	vec3 fetchIrrImag;
+
+	computeSamplesY(phi,theta);
+
+	for(int j=0; j<4; j++)
+	{
+
+		for(int i=0; i<shAccuracy; i++)
+		{
+			fetchIrrReal = vec3(texelFetch(irradianceSH,irrIndex + i*2));
+			fetchIrrImag = vec3(texelFetch(irradianceSH,irrIndex + i*2 + 1));
+			float a,b;
+
+			/*
+			fetchBrdfY = vec2(texelFetch(sampledBrdfSH,outIndexY + i ));		
+			*/
+			fetchBrdfY = vec2(texelFetch(sampledBrdfSH,sampleY[j] + i ));
+
+
+			a = sqrt(fetchIrrReal.x*fetchIrrReal.x + fetchIrrImag.x*fetchIrrImag.x);
+			b = sqrt(fetchBrdfY.x*fetchBrdfY.x + fetchBrdfY.y*fetchBrdfY.y);
+			sumY = sumY + sampleYWeight[j]*a*b;
+			
+			fetchBrdfPb = vec2(texelFetch(sampledBrdfSH,outIndexPb + i));
+			fetchBrdfPr = vec2(texelFetch(sampledBrdfSH,outIndexPr + i));
+
+			b = sqrt(fetchBrdfPb.x*fetchBrdfPb.x + fetchBrdfPb.y*fetchBrdfPb.y);
+			sumPb = sumPb + a*b;
+
+			b = sqrt(fetchBrdfPr.x*fetchBrdfPr.x + fetchBrdfPr.y*fetchBrdfPr.y);
+			sumPr = sumPr + a*b;
+
+		}
+	}
+
+	return YpbprToRgb(vec3(sumY,sumPb,sumPr));
+}
+
+int getBrdfIndexY(float phi, float theta)
+{
+	float pi = 3.141592654;
+	float phiStep = 0.5*pi/(float(brdfN));
+	int phiIndex = int(floor(phi/phiStep));
+	float thetaStep = 2*pi/(float(brdfN*4));
+	int thetaIndex = int(floor(theta/thetaStep));
+	return phiIndex*brdfN*brdfN*4 + thetaIndex;
+}
+
+int getBrdfIndexPb(float phi, float theta)
+{
+	float pi = 3.141592654;
+	float phiStep = 0.5*pi/(float(brdfN/2));
+	int phiIndex = int(floor(phi/phiStep));
+	float thetaStep = 2*pi/(float(brdfN*2));
+	int thetaIndex = int(floor(theta/thetaStep));
+	return phiIndex*brdfN*brdfN + thetaIndex + brdfN*brdfN*16*brdfN*brdfN;
+}
+
+int getBrdfIndexPr(float phi, float theta)
+{
+	float pi = 3.141592654;
+	float phiStep = 0.5*pi/(float(brdfN/2));
+	int phiIndex = int(floor(phi/phiStep));
+	float thetaStep = 2*pi/(float(brdfN*2));
+	int thetaIndex = int(floor(theta/thetaStep));
+	return phiIndex*brdfN*brdfN + thetaIndex + brdfN*brdfN*16*brdfN*brdfN + brdfN*brdfN*brdfN*brdfN;
+}
+
+vec3 computeRadiance(int sampleIndex, vec3 cameraCoords, vec3 bX, vec3 bY, vec3 bZ)
+{
+	int outIndexY;
+	int outIndexPb;
+	int outIndexPr;
+	float phi;
+	float theta;
+
+	int irrIndex = sampleIndex*shAccuracy*2;
+
+	vec3 dir = normalize(-vec3(cameraCoords));
+	toSpherical(dir,bX,bY,bZ,phi,theta);
+	outIndexY = getBrdfIndexY(phi,theta);
+	outIndexPb = getOutIndexPb(phi,theta);
+	outIndexPr = getOutIndexPr(phi,theta);
+
+	float p,t;
+	vec3 ld = normalize(vec3(0.0,10,0.0)-vec3(cameraCoords));
+	toSpherical(ld,bX,bY,bZ,p,t);
+	int iIndex = getOutIndexY(p,t);
+
+	float y = 0;
+	int index;
+	float ss;
+	for(int i=0; i<brdfN*brdfN*4; i++)
+	{
+		ss = texelFetch(sampledBrdfSH,outIndexY + i).x;
+		y = y + ss;
+	}
+	return vec3(1.0,0.0,0.0)*y*0.25;
+}
+
+vec3 computeVertexIrradianceSH(int sampleIndex,vec3 cameraCoords, vec3 bX, vec3 bY, vec3 bZ)
+{
+	float phi;
+	float theta;
+
+	int irrIndex = sampleIndex*shAccuracy;
+
+	vec3 dir = normalize(-vec3(cameraCoords));
+	toSpherical(dir,bX,bY,bZ,phi,theta);
+	
+	computeSamplesY(phi, theta);
+	
+	vec3 fetchIrr;
+	vec3 result = vec3(0.0,0.0,0.0);
+	float brdfSHreal = 0;
+	float brdfSHimag = 0;
+
+	vec2 fetchBrdfY;
+
+	int outIndexY = getBrdfIndexY(phi,theta);
+	int outIndexPb = getBrdfIndexPb(phi,theta);
+	int outIndexPr = getBrdfIndexPr(phi,theta);
+
+		for(int i=0; i<shAccuracy; i++)
+		{
+			computeSHCoefficient(phi, theta, i, brdfSHreal, brdfSHimag);
+			fetchIrr = vec3(texelFetch(irradianceVertexSH,irrIndex + i));
+			
+			fetchBrdfY = vec2(texelFetch(sampledBrdfSH,outIndexY + i ));
+
+			float brdfSH = sqrt(fetchBrdfY.x*fetchBrdfY.x + fetchBrdfY.y*fetchBrdfY.y);
+			/*result = result + fetchIrr*max(brdfSH,0.0);*/
+			result = result + fetchIrr;
+
+		}
+	
+	
+	return result;
+}
+
+void computeSHCoefficient(float phi, float theta, int index, inout float real, inout float imag )
+{
+	float M_PI = 3.14159265359;
+	if (index == 0)
+	{
+		real = 0.5*sqrt(1.0 / M_PI);
+		imag = 0.0;
+	}
+	else if (index == 1)
+	{
+		real = 0.5*sqrt(3.0 / (2 * M_PI))*sin(theta)*cos(-phi);
+		imag = 0.5*sqrt(3.0 / (2 * M_PI))*sin(theta)*sin(-phi);
+	}
+	else if (index == 2)
+	{
+		real = 0.5*sqrt(3.0 / M_PI)*cos(theta);
+		imag = 0.0;
+	}
+	else if (index == 3)
+	{
+		real = -0.5*sqrt(3.0 / (2 * M_PI))*sin(theta)*cos(phi);
+		imag = -0.5*sqrt(3.0 / (2 * M_PI))*sin(theta)*sin(phi);
+	}
+	else if (index == 4)
+	{
+		real = 0.25*sqrt(15.0 / (2 * M_PI))*pow(sin(theta), 2.0)*cos(-2 * phi);
+		imag = 0.25*sqrt(15.0 / (2 * M_PI))*pow(sin(theta), 2.0)*sin(-2 * phi);
+	}
+	else if (index == 5)
+	{
+		real = 0.5*sqrt(15.0 / (2 * M_PI))*sin(theta)*cos(theta)*cos(-phi);
+		imag = 0.5*sqrt(15.0 / (2 * M_PI))*sin(theta)*cos(theta)*sin(-phi);
+	}
+	else if (index == 6)
+	{
+		real = 0.25*sqrt(5.0 / M_PI)*(3 * pow(cos(theta), 2.0) - 1.0);
+		imag = 0.0;
+	}
+	else if (index == 7)
+	{
+		real = -0.5*sqrt(15.0 / (2 * M_PI))*sin(theta)*cos(theta)*cos(phi);
+		imag = -0.5*sqrt(15.0 / (2 * M_PI))*sin(theta)*cos(theta)*sin(phi);
+	}
+	else if (index == 8)
+	{
+		real = 0.25*sqrt(15.0 / (2 * M_PI))*pow(sin(theta), 2.0)*cos(2 * phi);
+		imag = 0.25*sqrt(15.0 / (2 * M_PI))*pow(sin(theta), 2.0)*sin(2 * phi);
+	}
+	else if (index == 9)
+	{
+		real = (1.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*cos(-3 * phi);
+		imag = (1.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*sin(-3 * phi);
+	}
+	else if (index == 10)
+	{
+		real = 0.25*sqrt(105.0 / (2 * M_PI))*pow(sin(theta), 2.0)*cos(theta)*cos(-2 * phi);
+		imag = 0.25*sqrt(105.0 / (2 * M_PI))*pow(sin(theta), 2.0)*cos(theta)*sin(-2 * phi);
+	}
+	else if (index == 11)
+	{
+		real = (1.0 / 8)*sqrt(21.0 / M_PI)*sin(theta)*(5.0*pow(cos(theta), 2.0) - 1.0)*cos(-phi);
+		imag = (1.0 / 8)*sqrt(21.0 / M_PI)*sin(theta)*(5.0*pow(cos(theta), 2.0) - 1.0)*sin(-phi);
+	}
+	else if (index == 12)
+	{
+		real = 0.25*sqrt(7.0 / M_PI)*(5 * pow(cos(theta), 3.0) - 3.0*cos(theta));
+		imag = 0.0;
+	}
+	else if (index == 13)
+	{
+		real = (-1.0 / 8)*sqrt(21.0 / M_PI)*sin(theta)*(5 * pow(cos(theta), 2.0) - 1.0)*cos(phi);
+		imag = (-1.0 / 8)*sqrt(21.0 / M_PI)*sin(theta)*(5 * pow(cos(theta), 2.0) - 1.0)*sin(phi);
+	}
+	else if (index == 14)
+	{
+		real = 0.25*sqrt(105.0 / (2 * M_PI))*pow(sin(theta), 2.0)*cos(theta)*cos(2 * phi);
+		imag = 0.25*sqrt(105.0 / (2 * M_PI))*pow(sin(theta), 2.0)*cos(theta)*sin(2 * phi);
+	}
+	else if (index == 15)
+	{
+		real = (-1.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*cos(3 * phi);
+		imag = (-1.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*sin(3 * phi);
+	}
+	else if (index == 16)
+	{
+		real = (3.0 / 16)*sqrt(35.0 / (2 * M_PI))*pow(sin(theta), 4.0)*cos(-4.0*phi);
+		imag = (3.0 / 16)*sqrt(35.0 / (2 * M_PI))*pow(sin(theta), 4.0)*sin(-4.0*phi);
+	}
+	else if (index == 17)
+	{
+		real = (3.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*cos(theta)*cos(-3.0*phi);
+		imag = (3.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*cos(theta)*sin(-3.0*phi);
+	}
+	else if (index == 18)
+	{
+		real = (3.0 / 8)*sqrt(5.0 / (2 * M_PI))*pow(sin(theta), 2.0)*(7 * pow(cos(theta), 2.0) - 1.0)*cos(-2.0*phi);
+		imag = (3.0 / 8)*sqrt(5.0 / (2 * M_PI))*pow(sin(theta), 2.0)*(7 * pow(cos(theta), 2.0) - 1.0)*sin(-2.0*phi);
+	}
+	else if (index == 19)
+	{
+		real = (3.0 / 8)*sqrt(5.0 / (M_PI))*sin(theta)*(7 * pow(cos(theta), 3.0) - 3.0*cos(theta))*cos(-phi);
+		imag = (3.0 / 8)*sqrt(5.0 / (M_PI))*sin(theta)*(7 * pow(cos(theta), 3.0) - 3.0*cos(theta))*sin(-phi);
+	}
+	else if (index == 20)
+	{
+		real = (3.0 / 16)*sqrt(1 / M_PI)*(35 * pow(cos(theta), 4.0) - 30.0*pow(cos(theta), 2.0) + 3.0);
+		imag = 0.0;
+	}
+	else if (index == 21)
+	{
+		real = (-3.0 / 8)*sqrt(5.0 / M_PI)*sin(theta)*(7 * pow(cos(theta), 3.0) - 3.0*cos(theta))*cos(phi);
+		imag = (-3.0 / 8)*sqrt(5.0 / M_PI)*sin(theta)*(7 * pow(cos(theta), 3.0) - 3.0*cos(theta))*sin(phi);
+	}
+	else if (index == 22)
+	{
+		real = (3.0 / 8)*sqrt(5.0 / (2 * M_PI))*pow(sin(theta), 2.0)*(7 * pow(cos(theta), 2.0) - 1.0)*cos(2.0*phi);
+		imag = (3.0 / 8)*sqrt(5.0 / (2 * M_PI))*pow(sin(theta), 2.0)*(7 * pow(cos(theta), 2.0) - 1.0)*sin(2.0*phi);
+	}
+	else if (index == 23)
+	{
+		real = (-3.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*cos(theta)*cos(3.0*phi);
+		imag = (-3.0 / 8)*sqrt(35.0 / M_PI)*pow(sin(theta), 3.0)*cos(theta)*sin(3.0*phi);
+	}
+	else if (index == 24)
+	{
+		real = (3.0 / 16)*sqrt(35.0 / (2 * M_PI))*pow(sin(theta), 4.0)*cos(4.0*phi);
+		imag = (3.0 / 16)*sqrt(35.0 / (2 * M_PI))*pow(sin(theta), 4.0)*sin(4.0*phi);
+	}
+	else if (index == 25)
+	{
+		real = (3.0 / 32.0)*sqrt(77.0 / M_PI)*cos(-5.0*phi)*pow(sin(theta), 5.0);
+		imag = (3.0 / 32.0)*sqrt(77.0 / M_PI)*sin(-5.0*phi)*pow(sin(theta), 5.0);
+	}
+	/*
+	else if (index == 26)
+	{
+		real = (3.0 / 16.0)*sqrt(385.0 / (2.0*M_PI))*cos(-4.0*phi)*pow(sin(theta), 4.0)*cos(theta);
+		imag = (3.0 / 16.0)*sqrt(385.0 / (2.0*M_PI))*sin(-4.0*phi)*pow(sin(theta), 4.0)*cos(theta);
+	}
+	else if (index == 27)
+	{
+		real = (1.0 / 32.0)*sqrt(385.0 / (M_PI))*cos(-3.0*phi)*pow(sin(theta), 3.0)*(9.0*pow(cos(theta), 2.0) - 1);
+		imag = (1.0 / 32.0)*sqrt(385.0 / (M_PI))*sin(-3.0*phi)*pow(sin(theta), 3.0)*(9.0*pow(cos(theta), 2.0) - 1);
+	}
+	else if (index == 28)
+	{
+		real = (1.0 / 8.0)*sqrt(1155.0 / (2.0*M_PI))*cos(-2.0*phi)*pow(sin(theta), 2.0)*(3.0*pow(cos(theta), 3.0) - cos(theta));
+		imag = (1.0 / 8.0)*sqrt(1155.0 / (2.0*M_PI))*sin(-2.0*phi)*pow(sin(theta), 2.0)*(3.0*pow(cos(theta), 3.0) - cos(theta));
+	}
+	else if (index == 29)
+	{
+		real = (1.0 / 16.0)*sqrt(165.0 / (2.0*M_PI))*cos(-1.0*phi)*sin(theta)*(21.0*pow(cos(theta), 4.0) - 14 * pow(cos(theta), 2.0) + 1);
+		imag = (1.0 / 16.0)*sqrt(165.0 / (2.0*M_PI))*sin(-1.0*phi)*sin(theta)*(21.0*pow(cos(theta), 4.0) - 14 * pow(cos(theta), 2.0) + 1);
+	}
+	else if (index == 30)
+	{
+		real = (1.0 / 16.0)*sqrt(11.0 / (M_PI))*(63.0*pow(cos(theta), 5.0) - 70 * pow(cos(theta), 3.0) + 15*cos(theta));
+		imag = 0;
+	}
+	else if (index == 31)
+	{
+		real = (-1.0 / 16.0)*sqrt(165.0 / (2.0*M_PI))*cos(phi)*sin(theta)*(21.0*pow(cos(theta), 4.0) - 14 * pow(cos(theta), 2.0) + 1);
+		imag = (-1.0 / 16.0)*sqrt(165.0 / (2.0*M_PI))*sin(phi)*sin(theta)*(21.0*pow(cos(theta), 4.0) - 14 * pow(cos(theta), 2.0) + 1);
+	}
+	else if (index == 32)
+	{
+		real = (1.0 / 8.0)*sqrt(1155.0 / (2.0*M_PI))*cos(2.0*phi)*pow(sin(theta), 2.0)*(3.0*pow(cos(theta), 3.0) - cos(theta));
+		imag = (1.0 / 8.0)*sqrt(1155.0 / (2.0*M_PI))*sin(2.0*phi)*pow(sin(theta), 2.0)*(3.0*pow(cos(theta), 3.0) - cos(theta));
+	}
+	else if (index == 33)
+	{
+		real = (-1.0 / 32.0)*sqrt(385.0 / (M_PI))*cos(3.0*phi)*pow(sin(theta), 3.0)*(9.0*pow(cos(theta), 2.0) - 1);
+		imag = (-1.0 / 32.0)*sqrt(385.0 / (M_PI))*sin(3.0*phi)*pow(sin(theta), 3.0)*(9.0*pow(cos(theta), 2.0) - 1);
+	}
+	else if (index == 34)
+	{
+		real = (3.0 / 16.0)*sqrt(385.0 / (2.0*M_PI))*cos(4.0*phi)*pow(sin(theta), 4.0)*cos(theta);
+		imag = (3.0 / 16.0)*sqrt(385.0 / (2.0*M_PI))*sin(4.0*phi)*pow(sin(theta), 4.0)*cos(theta);
+	}
+	else if (index == 35)
+	{
+		real = (-3.0 / 32.0)*sqrt(77.0 / M_PI)*cos(5.0*phi)*pow(sin(theta), 5.0);
+		imag = (-3.0 / 32.0)*sqrt(77.0 / M_PI)*sin(5.0*phi)*pow(sin(theta), 5.0);
+	}
+
+	else if (index == 36)	//  I = 6
+	{
+		real = (1.0 / 64.0)*sqrt(3003.0 / M_PI)*pow(sin(theta), 6.0)*cos(-6.0*phi);
+		imag = (1.0 / 64.0)*sqrt(3003.0 / M_PI)*pow(sin(theta), 6.0)*sin(-6.0*phi);
+	}
+	else if (index == 37)
+	{
+		real = (3.0 / 32.0)*sqrt(1001.0 / M_PI)*cos(theta)*pow(sin(theta), 5.0)*cos(-5.0*phi);
+		imag = (3.0 / 32.0)*sqrt(1001.0 / M_PI)*cos(theta)*pow(sin(theta), 5.0)*sin(-5.0*phi);
+	}
+	else if (index == 38)
+	{
+		real = (3.0 / 32.0)*sqrt(91.0 / (2.0*M_PI))*(11.0*pow(cos(theta), 2.0) - 1.0)*pow(sin(theta), 4.0)*cos(-4.0*phi);
+		imag = (3.0 / 32.0)*sqrt(91.0 / (2.0*M_PI))*(11.0*pow(cos(theta), 2.0) - 1.0)*pow(sin(theta), 4.0)*sin(-4.0*phi);
+	}
+	else if (index == 39)
+	{
+		real = (1.0 / 32.0)*sqrt(1365.0 / (M_PI))*(11.0*pow(cos(theta), 3.0) - 3*cos(theta))*pow(sin(theta), 3.0)*cos(-3.0*phi);
+		imag = (1.0 / 32.0)*sqrt(1365.0 / (M_PI))*(11.0*pow(cos(theta), 3.0) - 3*cos(theta))*pow(sin(theta), 3.0)*sin(-3.0*phi);
+	}
+	else if (index == 40)
+	{
+		real = (1.0 / 64.0)*sqrt(1365.0 / (M_PI))*(33.0*pow(cos(theta), 4.0) - 18 * pow(cos(theta),2.0) + 1.0)*pow(sin(theta), 2.0)*cos(-2.0*phi);
+		imag = (1.0 / 64.0)*sqrt(1365.0 / (M_PI))*(33.0*pow(cos(theta), 4.0) - 18 * pow(cos(theta),2.0) + 1.0)*pow(sin(theta), 2.0)*sin(-2.0*phi);
+	}
+	else if (index == 41)
+	{
+		real = (1.0 / 16.0)*sqrt(273.0 / (2.0*M_PI))*(33.0*pow(cos(theta), 5.0) - 30 * pow(cos(theta), 3.0) + 5.0*cos(theta))*pow(sin(theta), 1.0)*cos(-1.0*phi);
+		imag = (1.0 / 16.0)*sqrt(273.0 / (2.0*M_PI))*(33.0*pow(cos(theta), 5.0) - 30 * pow(cos(theta), 3.0) + 5.0*cos(theta))*pow(sin(theta), 1.0)*sin(-1.0*phi);
+	}
+	else if (index == 42)
+	{
+		real = (1.0 / 32.0)*sqrt(13.0 / M_PI)*(231 * pow(cos(theta), 6.0) - 315 * pow(cos(theta), 4.0) + 105 * pow(cos(theta), 2.0) - 5.0);
+		imag = 0.0;
+	}
+	else if (index == 43)
+	{
+		real = (-1.0 / 16.0)*sqrt(273.0 / (2.0*M_PI))*(33.0*pow(cos(theta), 5.0) - 30 * pow(cos(theta), 3.0) + 5.0*cos(theta))*pow(sin(theta), 1.0)*cos(1.0*phi);
+		imag = (-1.0 / 16.0)*sqrt(273.0 / (2.0*M_PI))*(33.0*pow(cos(theta), 5.0) - 30 * pow(cos(theta), 3.0) + 5.0*cos(theta))*pow(sin(theta), 1.0)*sin(1.0*phi);
+	}
+	else if (index == 44)
+	{
+		real = (1.0 / 64.0)*sqrt(1365.0 / (M_PI))*(33.0*pow(cos(theta), 4.0) - 18 * pow(cos(theta), 2.0) + 1.0)*pow(sin(theta), 2.0)*cos(2.0*phi);
+		imag = (1.0 / 64.0)*sqrt(1365.0 / (M_PI))*(33.0*pow(cos(theta), 4.0) - 18 * pow(cos(theta), 2.0) + 1.0)*pow(sin(theta), 2.0)*sin(2.0*phi);
+	}
+	else if (index == 45)
+	{
+		real = (-1.0 / 32.0)*sqrt(1365.0 / (M_PI))*(11.0*pow(cos(theta), 3.0) - 3 * cos(theta))*pow(sin(theta), 3.0)*cos(3.0*phi);
+		imag = (-1.0 / 32.0)*sqrt(1365.0 / (M_PI))*(11.0*pow(cos(theta), 3.0) - 3 * cos(theta))*pow(sin(theta), 3.0)*sin(3.0*phi);
+	}
+	else if (index == 46)
+	{
+		real = (3.0 / 32.0)*sqrt(91.0 / (2.0*M_PI))*(11.0*pow(cos(theta), 2.0) - 1.0)*pow(sin(theta), 4.0)*cos(4.0*phi);
+		imag = (3.0 / 32.0)*sqrt(91.0 / (2.0*M_PI))*(11.0*pow(cos(theta), 2.0) - 1.0)*pow(sin(theta), 4.0)*sin(4.0*phi);
+	}
+	else if (index == 47)
+	{
+		real = (-3.0 / 32.0)*sqrt(1001.0 / M_PI)*cos(theta)*pow(sin(theta), 5.0)*cos(5.0*phi);
+		imag = (-3.0 / 32.0)*sqrt(1001.0 / M_PI)*cos(theta)*pow(sin(theta), 5.0)*sin(5.0*phi);
+	}
+	else if (index == 48)
+	{
+		real = (1.0 / 64.0)*sqrt(3003.0 / M_PI)*pow(sin(theta), 6.0)*cos(6.0*phi);
+		imag = (1.0 / 64.0)*sqrt(3003.0 / M_PI)*pow(sin(theta), 6.0)*sin(6.0*phi);
+	}
+
+	else if (index == 49) // I = 7
+	{
+		real = (3.0 / 64.0)*sqrt(715.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*cos(-7.0*phi);
+		imag = (3.0 / 64.0)*sqrt(715.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*sin(-7.0*phi);
+	}
+	else if (index == 50)
+	{
+		real = (3.0 / 64.0)*sqrt(5005.0 / (M_PI))*pow(sin(theta), 6.0)*cos(theta)*cos(-6.0*phi);
+		imag = (3.0 / 64.0)*sqrt(5005.0 / (M_PI))*pow(sin(theta), 6.0)*cos(theta)*sin(-6.0*phi);
+	}
+	else if (index == 51)
+	{
+		real = (3.0 / 64.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(13.0*pow(cos(theta), 2.0) - 1.0)*cos(-5.0*phi);
+		imag = (3.0 / 64.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(13.0*pow(cos(theta), 2.0) - 1.0)*sin(-5.0*phi);
+	}
+	else if (index == 52)
+	{
+		real = (3.0 / 32.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(13.0*pow(cos(theta), 3.0) - 3.0*cos(theta))*cos(-4.0*phi);
+		imag = (3.0 / 32.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(13.0*pow(cos(theta), 3.0) - 3.0*cos(theta))*sin(-4.0*phi);
+	}
+	else if (index == 53)
+	{
+		real = (3.0 / 64.0)*sqrt(35.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(143.0*pow(cos(theta), 4.0) - 66.0*pow(cos(theta),2.0) + 3.0)*cos(-3.0*phi);
+		imag = (3.0 / 64.0)*sqrt(35.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(143.0*pow(cos(theta), 4.0) - 66.0*pow(cos(theta),2.0) + 3.0)*sin(-3.0*phi);
+	}
+	else if (index == 54)
+	{
+		real = (3.0 / 64.0)*sqrt(35.0 / M_PI)*pow(sin(theta), 2.0)*(143.0*pow(cos(theta), 5.0) - 110 * pow(cos(theta), 3.0) + 15 * cos(theta))*cos(-2.0*phi);
+		imag = (3.0 / 64.0)*sqrt(35.0 / M_PI)*pow(sin(theta), 2.0)*(143.0*pow(cos(theta), 5.0) - 110 * pow(cos(theta), 3.0) + 15 * cos(theta))*sin(-2.0*phi);
+	}
+	else if (index == 55)
+	{
+		real = (1.0 / 64.0)*sqrt(105.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(429.0*pow(cos(theta), 6.0) - 495.0 * pow(cos(theta), 4.0) + 135.0 * pow(cos(theta),2.0) - 5.0)*cos(-phi);
+		imag = (1.0 / 64.0)*sqrt(105.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(429.0*pow(cos(theta), 6.0) - 495.0 * pow(cos(theta), 4.0) + 135.0 * pow(cos(theta),2.0) - 5.0)*sin(-phi);
+	}
+	else if (index == 56)
+	{
+		real = (1.0 / 32.0)*sqrt(15.0 / M_PI)*(429.0*pow(cos(theta), 7.0) - 693.0*pow(cos(theta), 5.0) + 315.0*pow(cos(theta), 3.0) - 35.0*cos(theta));
+		imag = 0.0;
+	}
+	else if (index == 57)
+	{
+		real = (-1.0 / 64.0)*sqrt(105.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(429.0*pow(cos(theta), 6.0) - 495.0 * pow(cos(theta), 4.0) + 135.0 * pow(cos(theta), 2.0) - 5.0)*cos(phi);
+		imag = (-1.0 / 64.0)*sqrt(105.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(429.0*pow(cos(theta), 6.0) - 495.0 * pow(cos(theta), 4.0) + 135.0 * pow(cos(theta), 2.0) - 5.0)*sin(phi);
+	}
+	else if (index == 58)
+	{
+		real = (3.0 / 64.0)*sqrt(35.0 / M_PI)*pow(sin(theta), 2.0)*(143.0*pow(cos(theta), 5.0) - 110 * pow(cos(theta), 3.0) + 15.0 * cos(theta))*cos(2.0*phi);
+		imag = (3.0 / 64.0)*sqrt(35.0 / M_PI)*pow(sin(theta), 2.0)*(143.0*pow(cos(theta), 5.0) - 110 * pow(cos(theta), 3.0) + 15.0 * cos(theta))*sin(2.0*phi);
+	}
+	else if (index == 59)
+	{
+		real = (-3.0 / 64.0)*sqrt(35.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(143.0*pow(cos(theta), 4.0) - 66.0*pow(cos(theta), 2.0) + 3.0)*cos(3.0*phi);
+		imag = (-3.0 / 64.0)*sqrt(35.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(143.0*pow(cos(theta), 4.0) - 66.0*pow(cos(theta), 2.0) + 3.0)*sin(3.0*phi);
+	}
+	else if (index == 60)
+	{
+		real = (3.0 / 32.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(13.0*pow(cos(theta), 3.0) - 3.0*cos(theta))*cos(4.0*phi);
+		imag = (3.0 / 32.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(13.0*pow(cos(theta), 3.0) - 3.0*cos(theta))*sin(4.0*phi);
+	}
+	else if (index == 61)
+	{
+		real = (-3.0 / 64.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(13.0*pow(cos(theta), 2.0) - 1.0)*cos(5.0*phi);
+		imag = (-3.0 / 64.0)*sqrt(385.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(13.0*pow(cos(theta), 2.0) - 1.0)*sin(5.0*phi);
+	}
+	else if (index == 62)
+	{
+		real = (3.0 / 64.0)*sqrt(5005.0 / (M_PI))*pow(sin(theta), 6.0)*cos(theta)*cos(6.0*phi);
+		imag = (3.0 / 64.0)*sqrt(5005.0 / (M_PI))*pow(sin(theta), 6.0)*cos(theta)*sin(6.0*phi);
+	}
+	else if (index == 63)
+	{
+		real = (-3.0 / 64.0)*sqrt(715.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*cos(7.0*phi);
+		imag = (-3.0 / 64.0)*sqrt(715.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*sin(7.0*phi);
+	}
+	
+	else if (index == 64)	// I = 8
+	{
+		real = (3.0 / 256.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*cos(-8.0*phi);
+		imag = (3.0 / 256.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*sin(-8.0*phi);
+	}
+	else if (index == 65)
+	{
+		real = (3.0 / 64.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*cos(theta)*cos(-7.0*phi);
+		imag = (3.0 / 64.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*cos(theta)*sin(-7.0*phi);
+	}
+	else if (index == 66)
+	{
+		real = (1.0 / 128.0)*sqrt(7293.0 / (M_PI))*pow(sin(theta), 6.0)*(15.0 * pow(cos(theta), 2.0) - 1.0)*cos(-6.0*phi);
+		imag = (1.0 / 128.0)*sqrt(7293.0 / (M_PI))*pow(sin(theta), 6.0)*(15.0 * pow(cos(theta), 2.0) - 1.0)*sin(-6.0*phi);
+	}
+	else if (index == 67)
+	{
+		real = (3.0 / 64.0)*sqrt(17017.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(5.0 * pow(cos(theta), 3.0) - cos(theta))*cos(-5.0*phi);
+		imag = (3.0 / 64.0)*sqrt(17017.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(5.0 * pow(cos(theta), 3.0) - cos(theta))*sin(-5.0*phi);
+	}
+	else if (index == 68)
+	{
+		real = (3.0 / 128.0)*sqrt(1309.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(65.0 * pow(cos(theta), 4.0) - 26.0*pow(cos(theta), 2.0) + 1.0)*cos(-4.0*phi);
+		imag = (3.0 / 128.0)*sqrt(1309.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(65.0 * pow(cos(theta), 4.0) - 26.0*pow(cos(theta), 2.0) + 1.0)*sin(-4.0*phi);
+	}
+	else if (index == 69)
+	{
+		real = (1.0 / 64.0)*sqrt(19635.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(39.0 * pow(cos(theta), 5.0) - 26.0*pow(cos(theta), 3.0) + 3.0*cos(theta))*cos(-3.0*phi);
+		imag = (1.0 / 64.0)*sqrt(19635.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(39.0 * pow(cos(theta), 5.0) - 26.0*pow(cos(theta), 3.0) + 3.0*cos(theta))*sin(-3.0*phi);
+	}
+	else if (index == 70)
+	{
+		real = (3.0 / 128.0)*sqrt(595.0 / (M_PI))*pow(sin(theta), 2.0)*(143.0 * pow(cos(theta), 6.0) - 143.0*pow(cos(theta), 4.0) + 33.0*pow(cos(theta),2.0) - 1.0)*cos(-2.0*phi);
+		imag = (3.0 / 128.0)*sqrt(595.0 / (M_PI))*pow(sin(theta), 2.0)*(143.0 * pow(cos(theta), 6.0) - 143.0*pow(cos(theta), 4.0) + 33.0*pow(cos(theta),2.0) - 1.0)*sin(-2.0*phi);
+	}
+	else if (index == 71)
+	{
+		real = (3.0 / 64.0)*sqrt(17.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(715.0 * pow(cos(theta), 7.0) - 1001.0*pow(cos(theta), 5.0) + 385.0*pow(cos(theta), 3.0) - 35.0*cos(theta))*cos(-1.0*phi);
+		imag = (3.0 / 64.0)*sqrt(17.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(715.0 * pow(cos(theta), 7.0) - 1001.0*pow(cos(theta), 5.0) + 385.0*pow(cos(theta), 3.0) - 35.0*cos(theta))*sin(-1.0*phi);
+	}
+	else if (index == 72)
+	{
+		real = (1.0 / 256.0)*sqrt(17.0 / (M_PI))*(6435.0*pow(cos(theta), 8.0) - 12012.0*pow(cos(theta), 6.0) + 6930 * pow(cos(theta), 4.0) - 1260 * pow(cos(theta), 2.0) + 35.0);
+		imag = 0.0;
+	}
+	else if (index == 73)
+	{
+		real = (-3.0 / 64.0)*sqrt(17.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(715.0 * pow(cos(theta), 7.0) - 1001.0*pow(cos(theta), 5.0) + 385.0*pow(cos(theta), 3.0) - 35.0*cos(theta))*cos(1.0*phi);
+		imag = (-3.0 / 64.0)*sqrt(17.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(715.0 * pow(cos(theta), 7.0) - 1001.0*pow(cos(theta), 5.0) + 385.0*pow(cos(theta), 3.0) - 35.0*cos(theta))*sin(1.0*phi);
+	}
+	else if (index == 74)
+	{
+		real = (3.0 / 128.0)*sqrt(595.0 / (M_PI))*pow(sin(theta), 2.0)*(143.0 * pow(cos(theta), 6.0) - 143.0*pow(cos(theta), 4.0) + 33.0*pow(cos(theta), 2.0) - 1.0)*cos(2.0*phi);
+		imag = (3.0 / 128.0)*sqrt(595.0 / (M_PI))*pow(sin(theta), 2.0)*(143.0 * pow(cos(theta), 6.0) - 143.0*pow(cos(theta), 4.0) + 33.0*pow(cos(theta), 2.0) - 1.0)*sin(2.0*phi);
+	}
+	else if (index == 75)
+	{
+		real = (-1.0 / 64.0)*sqrt(19635.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(39.0 * pow(cos(theta), 5.0) - 26.0*pow(cos(theta), 3.0) + 3.0*cos(theta))*cos(3.0*phi);
+		imag = (-1.0 / 64.0)*sqrt(19635.0 / (2.0*M_PI))*pow(sin(theta), 3.0)*(39.0 * pow(cos(theta), 5.0) - 26.0*pow(cos(theta), 3.0) + 3.0*cos(theta))*sin(3.0*phi);
+	}
+	else if (index == 76)
+	{
+		real = (3.0 / 128.0)*sqrt(1309.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(65.0 * pow(cos(theta), 4.0) - 26.0*pow(cos(theta), 2.0) + 1.0)*cos(4.0*phi);
+		imag = (3.0 / 128.0)*sqrt(1309.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(65.0 * pow(cos(theta), 4.0) - 26.0*pow(cos(theta), 2.0) + 1.0)*sin(4.0*phi);
+	}
+	else if (index == 77)
+	{
+		real = (-3.0 / 64.0)*sqrt(17017.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(5.0 * pow(cos(theta), 3.0) - cos(theta))*cos(5.0*phi);
+		imag = (-3.0 / 64.0)*sqrt(17017.0 / (2.0*M_PI))*pow(sin(theta), 5.0)*(5.0 * pow(cos(theta), 3.0) - cos(theta))*sin(5.0*phi);
+	}
+	else if (index == 78)
+	{
+		real = (1.0 / 128.0)*sqrt(7293.0 / (M_PI))*pow(sin(theta), 6.0)*(15.0 * pow(cos(theta), 2.0) - 1.0)*cos(6.0*phi);
+		imag = (1.0 / 128.0)*sqrt(7293.0 / (M_PI))*pow(sin(theta), 6.0)*(15.0 * pow(cos(theta), 2.0) - 1.0)*sin(6.0*phi);
+	}
+	else if (index == 79)
+	{
+		real = (-3.0 / 64.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*cos(theta)*cos(7.0*phi);
+		imag = (-3.0 / 64.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 7.0)*cos(theta)*sin(7.0*phi);
+	}
+	else if (index == 80)
+	{
+		real = (3.0 / 256.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*cos(8.0*phi);
+		imag = (3.0 / 256.0)*sqrt(12155.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*sin(8.0*phi);
+	}
+	else if (index == 81)	// I = 9
+	{
+		real = (1.0 / 512.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 9.0)*cos(-9.0*phi);
+		imag = (1.0 / 512.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 9.0)*sin(-9.0*phi);
+	}
+	else if (index == 82)
+	{
+		real = (3.0 / 256.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*cos(theta)*cos(-8.0*phi);
+		imag = (3.0 / 256.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*cos(theta)*sin(-8.0*phi);
+	}
+	else if (index == 83)
+	{
+		real = (3.0 / 512.0)*sqrt(13585.0 / (M_PI))*pow(sin(theta), 7.0)*(17.0*pow(cos(theta),2.0) - 1.0)*cos(-7.0*phi);
+		imag = (3.0 / 512.0)*sqrt(13585.0 / (M_PI))*pow(sin(theta), 7.0)*(17.0 * pow(cos(theta), 2.0) - 1.0)*sin(-7.0*phi);
+	}
+	else if (index == 84)
+	{
+		real = (1.0 / 128.0)*sqrt(40755.0 / (M_PI))*pow(sin(theta), 6.0)*(17.0 * pow(cos(theta), 3.0) - 3.0*cos(theta))*cos(-6.0*phi);
+		imag = (1.0 / 128.0)*sqrt(40755.0 / (M_PI))*pow(sin(theta), 6.0)*(17.0 * pow(cos(theta), 3.0) - 3.0*cos(theta))*sin(-6.0*phi);
+	}
+	else if (index == 85)
+	{
+		real = (3.0 / 256.0)*sqrt(2717.0 / (M_PI))*pow(sin(theta), 5.0)*(85.0 * pow(cos(theta), 4.0) - 30.0*pow(cos(theta),2.0) + 1.0)*cos(-5.0*phi);
+		imag = (3.0 / 256.0)*sqrt(2717.0 / (M_PI))*pow(sin(theta), 5.0)*(85.0 * pow(cos(theta), 4.0) - 30.0*pow(cos(theta),2.0) + 1.0)*sin(-5.0*phi);
+	}
+	else if (index == 86)
+	{
+		real = (3.0 / 128.0)*sqrt(95095.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(17.0 * pow(cos(theta), 5.0) - 10.0*pow(cos(theta), 3.0) + cos(theta))*cos(-4.0*phi);
+		imag = (3.0 / 128.0)*sqrt(95095.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(17.0 * pow(cos(theta), 5.0) - 10.0*pow(cos(theta), 3.0) + cos(theta))*sin(-4.0*phi);
+	}
+	else if (index == 87)
+	{
+		real = (1.0 / 256.0)*sqrt(21945.0 / (M_PI))*pow(sin(theta), 3.0)*(221.0 * pow(cos(theta), 6.0) - 195.0*pow(cos(theta), 4.0) + 39*pow(cos(theta),2.0) - 1.0)*cos(-3.0*phi);
+		imag = (1.0 / 256.0)*sqrt(21945.0 / (M_PI))*pow(sin(theta), 3.0)*(221.0 * pow(cos(theta), 6.0) - 195.0*pow(cos(theta), 4.0) + 39*pow(cos(theta),2.0) - 1.0)*sin(-3.0*phi);
+	}
+	else if (index == 88)
+	{
+		real = (3.0 / 128.0)*sqrt(1045.0 / (M_PI))*pow(sin(theta), 2.0)*(221.0 * pow(cos(theta), 7.0) - 273.0*pow(cos(theta), 5.0) + 91.0 * pow(cos(theta), 3.0) - 7.0*cos(theta))*cos(-2.0*phi);
+		imag = (3.0 / 128.0)*sqrt(1045.0 / (M_PI))*pow(sin(theta), 2.0)*(221.0 * pow(cos(theta), 7.0) - 273.0*pow(cos(theta), 5.0) + 91.0 * pow(cos(theta), 3.0) - 7.0*cos(theta))*sin(-2.0*phi);
+	}
+	else if (index == 89)
+	{
+		real = (3.0 / 256.0)*sqrt(95.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(2431.0 * pow(cos(theta), 8.0) - 4004.0*pow(cos(theta), 6.0) + 2002.0 * pow(cos(theta), 4.0) - 308.0*pow(cos(theta),2.0) + 7.0)*cos(-1.0*phi);
+		imag = (3.0 / 256.0)*sqrt(95.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(2431.0 * pow(cos(theta), 8.0) - 4004.0*pow(cos(theta), 6.0) + 2002.0 * pow(cos(theta), 4.0) - 308.0*pow(cos(theta),2.0) + 7.0)*sin(-1.0*phi);
+	}
+	else if (index == 90)
+	{
+		real = (1.0 / 256.0)*sqrt(19.0 / (M_PI))*(12155.0 * pow(cos(theta), 9.0) - 25740.0*pow(cos(theta), 7.0) + 18018.0 * pow(cos(theta), 5.0) - 4620.0*pow(cos(theta), 3.0) + 315.0*cos(theta));
+		imag = 0.0;
+	}
+	else if (index == 91)
+	{
+		real = (-3.0 / 256.0)*sqrt(95.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(2431.0 * pow(cos(theta), 8.0) - 4004.0*pow(cos(theta), 6.0) + 2002.0 * pow(cos(theta), 4.0) - 308.0*pow(cos(theta), 2.0) + 7.0)*cos(1.0*phi);
+		imag = (-3.0 / 256.0)*sqrt(95.0 / (2.0*M_PI))*pow(sin(theta), 1.0)*(2431.0 * pow(cos(theta), 8.0) - 4004.0*pow(cos(theta), 6.0) + 2002.0 * pow(cos(theta), 4.0) - 308.0*pow(cos(theta), 2.0) + 7.0)*sin(1.0*phi);
+	}
+	else if (index == 92)
+	{
+		real = (3.0 / 128.0)*sqrt(1045.0 / (M_PI))*pow(sin(theta), 2.0)*(221.0 * pow(cos(theta), 7.0) - 273.0*pow(cos(theta), 5.0) + 91.0 * pow(cos(theta), 3.0) - 7.0*cos(theta))*cos(2.0*phi);
+		imag = (3.0 / 128.0)*sqrt(1045.0 / (M_PI))*pow(sin(theta), 2.0)*(221.0 * pow(cos(theta), 7.0) - 273.0*pow(cos(theta), 5.0) + 91.0 * pow(cos(theta), 3.0) - 7.0*cos(theta))*sin(2.0*phi);
+	}
+	else if (index == 93)
+	{
+		real = (-1.0 / 256.0)*sqrt(21945.0 / (M_PI))*pow(sin(theta), 3.0)*(221.0 * pow(cos(theta), 6.0) - 195.0*pow(cos(theta), 4.0) + 39 * pow(cos(theta), 2.0) - 1.0)*cos(3.0*phi);
+		imag = (-1.0 / 256.0)*sqrt(21945.0 / (M_PI))*pow(sin(theta), 3.0)*(221.0 * pow(cos(theta), 6.0) - 195.0*pow(cos(theta), 4.0) + 39 * pow(cos(theta), 2.0) - 1.0)*sin(3.0*phi);
+	}
+	else if (index == 94)
+	{
+		real = (3.0 / 128.0)*sqrt(95095.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(17.0 * pow(cos(theta), 5.0) - 10.0*pow(cos(theta), 3.0) + cos(theta))*cos(4.0*phi);
+		imag = (3.0 / 128.0)*sqrt(95095.0 / (2.0*M_PI))*pow(sin(theta), 4.0)*(17.0 * pow(cos(theta), 5.0) - 10.0*pow(cos(theta), 3.0) + cos(theta))*sin(4.0*phi);
+	}
+	else if (index == 95)
+	{
+		real = (-3.0 / 256.0)*sqrt(2717.0 / (M_PI))*pow(sin(theta), 5.0)*(85.0 * pow(cos(theta), 4.0) - 30.0*pow(cos(theta), 2.0) + 1.0)*cos(5.0*phi);
+		imag = (-3.0 / 256.0)*sqrt(2717.0 / (M_PI))*pow(sin(theta), 5.0)*(85.0 * pow(cos(theta), 4.0) - 30.0*pow(cos(theta), 2.0) + 1.0)*sin(5.0*phi);
+	}
+	else if (index == 96)
+	{
+		real = (1.0 / 128.0)*sqrt(40755.0 / (M_PI))*pow(sin(theta), 6.0)*(17.0 * pow(cos(theta), 3.0) - 3.0*cos(theta))*cos(6.0*phi);
+		imag = (1.0 / 128.0)*sqrt(40755.0 / (M_PI))*pow(sin(theta), 6.0)*(17.0 * pow(cos(theta), 3.0) - 3.0*cos(theta))*sin(6.0*phi);
+	}
+	else if (index == 97)
+	{
+		real = (-3.0 / 512.0)*sqrt(13585.0 / (M_PI))*pow(sin(theta), 7.0)*(17.0*pow(cos(theta), 2.0) - 1.0)*cos(7.0*phi);
+		imag = (-3.0 / 512.0)*sqrt(13585.0 / (M_PI))*pow(sin(theta), 7.0)*(17.0 * pow(cos(theta), 2.0) - 1.0)*sin(7.0*phi);
+	}
+	else if (index == 98)
+	{
+		real = (3.0 / 256.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*cos(theta)*cos(8.0*phi);
+		imag = (3.0 / 256.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 8.0)*cos(theta)*sin(8.0*phi);
+	}
+	else if (index == 99)
+	{
+		real = (-1.0 / 512.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 9.0)*cos(9.0*phi);
+		imag = (-1.0 / 512.0)*sqrt(230945.0 / (2.0*M_PI))*pow(sin(theta), 9.0)*sin(9.0*phi);
+	}
+	*/
+}

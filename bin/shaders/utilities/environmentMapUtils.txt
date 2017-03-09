@@ -1,0 +1,95 @@
+uniform int environmentMapN;
+uniform int environmentMapM;
+uniform int numEnvironmentMapVertices;
+
+uniform isamplerBuffer environmentMapFaceIndex;
+uniform samplerBuffer environmentMapIndex;
+uniform samplerBuffer environmentMap;
+
+vec3 getRadiance(int vIndex, vec3 bX, vec3 bY, vec3 bZ, vec3 dirOut);
+
+float wardBRDF(vec3 rIn, vec3 rOut, vec3 norm)
+{
+	float alpha = 2.3694;
+	vec3 surfaceNormal = norm;
+	vec3 hVector = halfwayVec(rIn, rOut);
+
+	float q1 = dot(surfaceNormal,rIn);
+	float q2 = dot(surfaceNormal,rOut);
+	
+	if(q1 <= 0 || q2 <= 0)
+		return 0;
+	
+	float d = 1.0/sqrt(q1*q2);
+	float delta = acos(dot(surfaceNormal,hVector));
+	float a = exp(-pow(tan(delta),2.0)/(alpha*alpha));
+	float b = 4*3.14159265*alpha*alpha;
+	return d*(a/b);
+}
+
+mat3 radianceRotation(vec3 center, vec3 pos, vec3 bX, vec3 bY, vec3 bZ)
+{
+	vec3 d = pos - center;
+	d = d + bY;
+	d = normalize(d);
+	float x = dot(d,bX);
+	float y = dot(d,bY);
+	float z = dot(d,bZ);
+	
+	float cosAngle = dot(d,bY);
+	float sinAngle = sin(acos(cosAngle));
+	mat3 R;
+	R[0][0] = x*x + (1 - x*x)*cosAngle;
+	R[0][1] = x*y*(1- cosAngle) - z*sinAngle;
+	R[0][2] = x*z*(1 - cosAngle) + y*sinAngle;
+
+	R[1][0] = x*y*(1 - cosAngle) + z*sinAngle;
+	R[1][1] = y*y + (1 - y*y)*cosAngle;
+	R[1][2] = y*z*(1 - cosAngle) - x*sinAngle;
+
+	R[2][0] = z*x*(1 - cosAngle) - y*sinAngle;
+	R[2][1] = z*y*(1 - cosAngle) + x*sinAngle;
+	R[2][2] = z*z + (1 - z*z)*cosAngle;
+	return R;
+}
+
+vec3 getRadiance(int vIndex, vec3 bX, vec3 bY, vec3 bZ, vec3 dirOut)
+{
+	int texIndex = vIndex*environmentMapN*environmentMapM;
+	int index = 0;
+	float r = 0;
+	vec3 rad = vec3(0.0,0.0,0.0);
+
+	vec3 w;
+	vec3 dirIn;
+	vec3 c;
+	float planeX = 10.0;
+	float planeY = 10.0;
+
+	for (int x = 0; x < environmentMapN; x++)
+	{
+		for (int y = 0; y < environmentMapM; y++)
+		{
+			w.x = -planeX + 2.0*planeX*float(x) / float(environmentMapN);
+			w.y = 1.0;
+			w.z = -planeY + 2.0*planeY*float(y) / float(environmentMapM);
+			w = normalize(w);
+
+			dirIn = w.x*bX + w.y*bY + w.z*bZ;
+			vec3 h = normalize(dirIn + dirOut);
+			float s = 5.0*dot(dirIn,bY);
+			c = vec3(texelFetch(environmentMap,texIndex + index));
+
+			if(c.x + c.y + c.z > 0.0)
+			{
+				rad = rad + c;
+				
+			}
+
+			index = index + 1;
+		}
+	}
+
+	return rad/(environmentMapN*environmentMapM);
+
+}

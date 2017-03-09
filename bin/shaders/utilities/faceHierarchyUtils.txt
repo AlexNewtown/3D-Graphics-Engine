@@ -1,0 +1,65 @@
+uniform samplerBuffer faceList;
+uniform int numFaces;
+
+Face_vertex getFace(int faceIndex);
+float rayTraceFaces(vec3 rayDir, vec3 rayPos, inout RayHitInfo rhi);
+float computeNormalDepth(vec3 pos, vec3 normal);
+
+Face_vertex getFace(int faceIndex)
+{
+	int index = faceIndex*3;
+	Face_vertex fv;
+	fv.vertex1 = texelFetch(faceList,index);
+	fv.vertex2 = texelFetch(faceList,index + 1);
+	fv.vertex3 = texelFetch(faceList,index + 2);
+	return fv;
+}
+
+float rayTraceFaces(vec3 rayDir, vec3 rayPos, inout RayHitInfo rhi)
+{
+	RayHitInfo hiTemp;
+	float minDist = 99999.0;
+	for(int i=0; i < numFaces; i++)
+	{
+
+		Face_vertex fv = getFace(i);
+		fv.vertex1 = transformEye( fv.vertex1 );
+		fv.vertex2 = transformEye( fv.vertex2 );
+		fv.vertex3 = transformEye( fv.vertex3 );
+
+		if(rayTriangleIntersect(fv, rayDir, rayPos,hiTemp))
+		{
+
+			/*
+			if(hiTemp.tmin > 0.0)
+			{
+				if(hiTemp.tmin < minDist )
+				{
+					minDist = hiTemp.tmin;
+					copyHitInfo(rhi, hiTemp );
+				}
+			}
+			*/
+
+			if(hiTemp.tmin > 0.0)
+			{
+				copyHitInfo(rhi, hiTemp);
+				if(hiTemp.tmin < minDist)
+					minDist = hiTemp.tmin;
+			}
+		}
+
+	}
+	return minDist;
+}
+
+float computeNormalDepth(vec3 pos, vec3 normal)
+{
+	vec3 rayDir = -normal;
+	vec3 rayPos = pos + 0.02*rayDir;
+	RayHitInfo rhi;
+
+	float depth;
+	depth = rayTraceFaces(rayDir, rayPos, rhi);
+	return depth;
+}

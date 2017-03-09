@@ -1,0 +1,164 @@
+const int viewingVectorSize = 9;
+int radianceIndex[viewingVectorSize];
+float radianceWeight[viewingVectorSize];
+
+uniform samplerBuffer brdfSVDU;
+uniform samplerBuffer brdfSVDV;
+
+uniform int directionsPerVertex;
+uniform samplerBuffer irradianceTexture;
+
+
+const float PI = 3.1415926535897932384626433832795;
+const float expr = 0.05;
+
+void viewingVector(vec3 globalPosition, vec3 basisX, vec3 basisY, vec3 basisZ);
+float radiance(float[brdfAccuracy] irrVec);
+float[brdfAccuracy] irradianceVector(int vertexID);
+
+float[brdfAccuracy] irradianceVector(int vertexID)
+{
+	float irrVec[brdfAccuracy];
+	int vSize = 4*directionsPerVertex*directionsPerVertex;
+	
+	int texIndex;
+	int rTexIndex = vertexID*vSize;
+	for(int k=0; k<brdfAccuracy; k++)
+	{
+		texIndex = k*vSize;
+		float uSum = 0;
+		for(int i=0;i<vSize;i++)
+		{
+			float r = texelFetch(irradianceTexture,rTexIndex + i).x;
+			float u = texelFetch(brdfSVDU,texIndex + i).x;
+			uSum = uSum + u*r;
+		}
+		irrVec[k] = uSum;
+	}
+	return irrVec;
+}
+
+void viewingVector(vec3 globalPosition, vec3 basisX, vec3 basisY, vec3 basisZ)
+{
+	vec3 outDirection = normalize(-globalPosition);
+
+	/*
+	vec3 bX = vec3(matrixMult(normalMatrix, basisX));
+	bX = normalize(bX);
+	vec3 bY = vec3(matrixMult(normalMatrix, normal));
+	bY = normalize(bY);
+	vec3 bZ = vec3(matrixMult(normalMatrix, basisZ));
+	bZ = normalize(bZ);
+	*/
+
+	float x = dot(basisX,outDirection);
+	float y = dot(basisY,outDirection);
+	float z = dot(basisZ,outDirection);
+
+	float theta,phi;
+	if(x == 0)
+	{
+		if(z > 0)
+		{
+			theta = PI/2.0;
+		}
+		else if(z < 0)
+		{
+			theta = -PI/2.0;
+		}
+		else
+		{
+			theta = 0.0;
+		}
+	}
+	else
+	{
+		theta = atan(z,x);
+	}
+	phi = acos(y);
+
+
+	int phiIndex = int(round(phi/(0.5 * PI / directionsPerVertex)));
+	int thetaIndex = int(round(theta/(2.0 * PI / (4 * directionsPerVertex))));
+	
+	int vvs = int(sqrt(viewingVectorSize));
+	int vvsHalf = int(floor(vvs/2));
+	int index = 0;
+	float weightSum = 0;
+	for(int i=phiIndex-vvsHalf; i<=phiIndex+vvsHalf; i++)
+	{
+		float pSample = i*(0.5 * PI / directionsPerVertex);
+		for(int j=thetaIndex-vvsHalf; j<thetaIndex+vvsHalf; j++)
+		{
+			float tSample = j*(2.0 * PI / (4 * directionsPerVertex));
+
+			radianceIndex[index] = i*directionsPerVertex + j;
+
+			radianceWeight[index] = exp( -((pSample - phi)*(pSample - phi) + (tSample - theta)*(tSample - theta))/expr   );
+			weightSum = weightSum + radianceWeight[index];
+			index = index + 1;
+		}
+
+	}
+
+
+	for(int i=0; i<viewingVectorSize;i++)
+	{
+		radianceWeight[i] = radianceWeight[i]/weightSum;
+	}
+}
+
+float radiance(float[brdfAccuracy] irrVec)
+{
+	int vSize = 4*directionsPerVertex*directionsPerVertex;
+	float f = 0;
+	int texIndex;
+	float uSum = 0.0;
+	float vSum = 0.0;
+	for(int k=0; k<brdfAccuracy; k++)
+	{
+		texIndex = k*vSize;
+		uSum = irrVec[k];
+		vSum = 0;
+		for(int i=0; i<viewingVectorSize; i++)
+		{
+			vSum = vSum + radianceWeight[i]*(texelFetch(brdfSVDV,texIndex + radianceIndex[i]).x);
+		}
+		f = f + vSum*uSum;
+	}
+	
+	return f;
+}
+
+/*
+float radiance(int vertexID)
+{
+	int vSize = 4*directionsPerVertex*directionsPerVertex;
+	float f = 0;
+	int texIndex;
+	int rTexIndex = vertexID*vSize;
+	for(int k=0; k<brdfAccuracy; k++)
+	{
+		texIndex = k*vSize;
+		float uSum = 0;
+		float vSum = 0;
+		for(int i=0;i<vSize;i++)
+		{
+			float r = texelFetch(irradianceTexture,rTexIndex + i).x;
+			float u = texelFetch(brdfSVDU,texIndex + i).x;
+			
+			
+			float v = texelFetch(brdfSVDV,texIndex + i).x;
+			float view = radianceVector[i];
+			vSum = vSum + v*view;
+			
+
+			uSum = uSum + u*r;
+		}
+		vSum = radianceWeight[0]*(texelFetch(brdfSVDV,texIndex + radianceIndex[0]).x);
+		f = f + vSum*uSum;
+	}
+	
+	return f;
+}
+*/

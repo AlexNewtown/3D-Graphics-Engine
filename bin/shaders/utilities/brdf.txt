@@ -1,0 +1,517 @@
+const float PI = 3.141592654;
+uniform int brdfType;
+uniform float indexOfRefraction;
+uniform float microfacetM;
+uniform float specularN;
+vec3 hVector;
+vec3 surfaceNormal;   
+
+const int BRDF_TORRANCE_SPARROW = 0;
+const int BRDF_BEARD_MAXWELL = 1;
+const int BRDF_COOK_TORRANCE = 2;
+const int BRDF_KAJIYA = 3;
+const int BRDF_POULIN_FOURNIER = 4;
+const int BRDF_HE_TORRANCE_SILLION_GREENBERG = 5;
+const int BRDF_OREN_NAYAR = 6;
+const int BRDF_COUPLED = 7;
+const int BRDF_ASHIKHMIN_SHIRLEY = 8;
+const int BRDF_GRANIER_HEIDRICH = 9;
+const int BRDF_MINNAERT = 10;
+const int BRDF_PHONG = 11;
+const int BRDF_BLINN = 12;
+const int BRDF_LEWIS = 13;
+const int BRDF_NEUMANN_NEUMANN = 14;
+const int BRDF_STRAUSS = 15;
+const int BRDF_WARD = 16;
+const int BRDF_SCHLICK = 17;
+const int BRDF_LAFORTUNE = 18; 
+const int BRDF_LAMBERTIAN = 19;
+
+const int monteCarloIters = 20;
+
+/*BRDF DIRECTION RIN AND ROUT BOTH POINT IN THE SAME DIRECTION AS THE NORMAL*/
+float sampleBRDF(vec3 rIn, vec3 rOut);
+vec3 localRayOut();
+float computeMonteCarloRadiance();
+
+vec3 halfwayVec(vec3 rIn, vec3 rOut);
+float fresnelFactor(vec3 rIn, vec3 rOut);
+float fresnelFactor(float cosTheta);
+
+vec3 lambertianBRDF(vec3 rIn, vec3 rOut);
+
+vec3 torranceSparrowBRDF(vec3 rIn, vec3 rOut);
+float torranceSparrow_D(float m, vec3 rIn, vec3 rOut);
+float torranceSparrow_F(float n1, float n2,vec3 rIn, vec3 rOut);
+float torranceSparrow_G(vec3 rIn, vec3 rOut);
+float torranceSparrow_D(float delta);
+
+vec3 beardMaxwellBRDF(vec3 rIn, vec3 rOut);
+float beardMaxwellBRDFSuperficial(vec3 rIn, vec3 rOut);
+float beardMaxwellBRDFVolume(vec3 rIn, vec3 rOut);
+float beardMaxwellBRDFfr(vec3 rIn, vec3 rOut);
+float beardMaxwellBRDFSO(vec3 rIn, vec3 rOut);
+
+vec3 cookTorranceBRDF(vec3 rIn, vec3 rOut);
+float cookTorranceBRDF_D(vec3 rIn, vec3 rOut);
+float cookTorranceBRDF_G(vec3 rIn, vec3 rOut);
+
+vec3 minnaertBRDF(vec3 rIn, vec3 rOut, float k);
+vec3 phongBRDF(vec3 rIn, vec3 rOut);
+vec3 blinnBRDF(vec3 rIn, vec3 rOut);
+vec3 lewisBRDF(vec3 rIn, vec3 rOut);
+
+float wardBRDF(vec3 rIn, vec3 rOut);
+
+vec3 localRayOut()
+{
+	vec3 ro = normalize(vec3(-gPosition));
+	ro = vec3(matrixMult(modelViewMatrixInverse, vec4(ro,0.0)));
+	ro = vec3(matrixMult(entityMatrix, vec4(ro,0.0)));
+	ro = normalize(ro);
+	return ro;
+}
+
+vec3 halfwayVec(vec3 rIn, vec3 rOut)
+{
+	return normalize(rIn + rOut);
+}
+
+float getTheta(float x, float y)
+{
+	if ( x == 0)
+	{
+		if( y > 0)
+			return PI*0.5;
+		else if( y< 0)
+			return PI*1.5;
+	}
+	float angle = y/x;
+	float nextAngle = (atan(angle));
+	
+	if( x < 0)
+	{
+		nextAngle = PI + nextAngle;
+	}
+	else if( y < 0)
+	{
+		nextAngle = 2*PI + nextAngle;
+	}
+
+	return nextAngle;
+}
+
+float fresnelFactor(vec3 rIn, vec3 rOut)
+{
+	float f_not = pow(abs((1.0 - indexOfRefraction)/(1.0 + indexOfRefraction)),2.0);
+	float base_exponent = 1.0 - dot(rIn, vec3(gNormal));
+	base_exponent = abs(base_exponent);
+	float f = f_not + (1.0 - f_not)*pow(base_exponent,5.0);
+	return f;
+}
+
+float fresnelFactor(float cosTheta)
+{
+	float f_not = pow(abs((1.0 - indexOfRefraction)/(1.0 + indexOfRefraction)),2.0);
+	float base_exponent = 1.0 - cosTheta;
+	base_exponent = abs(base_exponent);
+	float f = f_not + (1.0 - f_not)*pow(base_exponent,5.0);
+	return f;
+}
+
+vec3 lambertianBRDF(vec3 rIn, vec3 rOut)
+{
+	vec3 kd = getMaterialKd(gMaterialIndex);
+	kd = pixelColor();
+	return kd/PI;
+}
+
+vec3 torranceSparrowBRDF(vec3 rIn, vec3 rOut)
+{
+	float m = microfacetM;
+	hVector = halfwayVec(rIn, rOut);
+	surfaceNormal = vec3(gNormal);
+	vec3 kd = getMaterialKd(gMaterialIndex);
+	vec3 ks = getMaterialKs(gMaterialIndex);
+	vec3 tsbrdf = kd/PI + (ks/(4*PI*dot(surfaceNormal,rIn) ))*torranceSparrow_D(m,rIn,rOut)*fresnelFactor(hVector,rOut)*torranceSparrow_G(rIn,rOut);
+	return tsbrdf;
+}
+float torranceSparrow_D(float m, vec3 rIn, vec3 rOut)
+{
+	float normalHalfwaveDot = dot(hVector,surfaceNormal);
+	float term1 = 1/(PI*m*m*pow(normalHalfwaveDot,4.0));
+	float term2 = (pow(normalHalfwaveDot,2.0) - 1.0)/(m*m*(pow(normalHalfwaveDot,2.0)));
+	return term1*exp(term2);
+}
+float torranceSparrow_D(float delta)
+{
+	float normalHalfwaveDot = delta*dot(hVector,surfaceNormal);
+	float term1 = 1/(PI*microfacetM*microfacetM*pow(normalHalfwaveDot,4.0));
+	float term2 = (pow(normalHalfwaveDot,2.0) - 1.0)/(microfacetM*microfacetM*(pow(normalHalfwaveDot,2.0)));
+	return term1*exp(term2);
+}
+
+float torranceSparrow_F(float n1, float n2, vec3 rIn, vec3 rOut)
+{
+	float f_not = pow((n1 - n2)/(n1 + n2),2.0);
+	float base_exponent = 1 - dot(hVector, rOut);
+	float f = f_not + (1 - f_not)*pow(base_exponent,5.0);
+	return f;
+}
+float torranceSparrow_G(vec3 rIn, vec3 rOut)
+{
+	float n_dot_h =  dot(surfaceNormal,hVector);
+	float n_dot_wo = dot( surfaceNormal, rOut );
+	float wo_dot_h = dot(rOut,hVector);
+	float n_dot_wi = dot(surfaceNormal, rIn );
+
+	float min_val = min( 1, (2*n_dot_h*n_dot_wo)/wo_dot_h );
+	min_val = min(min_val, (2*n_dot_h*n_dot_wi)/wo_dot_h );
+	return min_val;
+}
+
+uniform float minnaertBRDF_k;
+vec3 minnaertBRDF(vec3 rIn, vec3 rOut)
+{
+	vec3 result = getMaterialKd(gMaterialIndex)/PI;
+	float base = dot(rOut, vec3(gNormal))*dot(rIn, vec3(gNormal));
+	result = result*pow(base,minnaertBRDF_k - 1);
+	return result;
+}
+
+vec3 phongBRDF(vec3 rIn, vec3 rOut)
+{
+	hVector = halfwayVec(rIn, rOut);
+	surfaceNormal = vec3(gNormal);
+	vec3 kd = getMaterialKd(gMaterialIndex);
+	vec3 ks = getMaterialKs(gMaterialIndex);
+	float factorA =  4*PI*(dot(surfaceNormal,rIn));
+	vec3 rInRef = 2*surfaceNormal*dot(surfaceNormal,rIn) - rIn;
+	rInRef = normalize(rInRef);
+	float factorD = pow(dot(rOut,rInRef),specularN);
+	return kd/PI + ks*factorD/factorA;
+}
+
+
+vec3 blinnBRDF(vec3 rIn, vec3 rOut)
+{
+	surfaceNormal = vec3(gNormal);
+	vec3 kd = getMaterialKd(gMaterialIndex);
+	vec3 ks = getMaterialKs(gMaterialIndex);
+	vec3 ksNorm = ks/(ks + kd);
+	vec3 d = ksNorm*pow( dot(surfaceNormal,halfwayVec(rIn, rOut)),specularN);
+	return d;
+}
+
+vec3 lewisBRDF(vec3 rIn, vec3 rOut)
+{
+	vec3 ks = getMaterialKs(gMaterialIndex);
+	vec3 f = ks*((specularN + 2.0)/(2*PI))*pow(dot(vec3(gNormal),halfwayVec(rIn, rOut)),specularN);
+	return f;
+}
+
+float beardMaxwell_tau = 0.2;
+float beardMaxwell_omega = 10.2;
+float beardMaxwell_volume = 0.00001;
+float beardMaxwell_diffuse = 0.18;
+vec3 beardMaxwellBRDF(vec3 rIn, vec3 rOut)
+{
+	vec3 brdf = vec3(1.0,1.0,1.0)*(beardMaxwellBRDFSuperficial(rIn,rOut) + beardMaxwell_diffuse + beardMaxwellBRDFVolume(rIn,rOut));
+	return brdf;
+}
+float beardMaxwellBRDFSuperficial(vec3 rIn, vec3 rOut)
+{
+	hVector = halfwayVec(rIn, rOut);
+	surfaceNormal = vec3(gNormal);   
+    
+	float fFactor = fresnelFactor(dot(hVector,surfaceNormal))/fresnelFactor(0);
+	float beta = dot(hVector,surfaceNormal);
+	float f = beardMaxwellBRDFSO(rIn,rOut)*fFactor*beardMaxwellBRDFfr(rIn,rOut)*pow(beta,2.0)/(dot(rIn,surfaceNormal)*dot(surfaceNormal,rOut));
+	return f;
+}
+float beardMaxwellBRDFVolume(vec3 rIn, vec3 rOut)
+{
+	return 2*beardMaxwell_volume/(dot(rIn,surfaceNormal) + dot(rOut,surfaceNormal));
+}
+float beardMaxwellBRDFfr(vec3 rIn, vec3 rOut)
+{
+	float f = fresnelFactor(0);
+	float delta = dot(hVector,surfaceNormal);
+	float d = torranceSparrow_D(delta);
+	f = f*d/(4*dot(surfaceNormal,rIn)*dot(surfaceNormal,rOut));
+	return f;
+}
+
+float beardMaxwellBRDFSO(vec3 rIn, vec3 rOut)
+{
+	float thetaH = acos(dot(hVector,surfaceNormal));
+	float beta = dot(rIn,hVector);
+	float so = (1.0 + (thetaH/beardMaxwell_omega)*exp(-2*beta/beardMaxwell_tau));
+	so = so/(1.0 + (thetaH/beardMaxwell_omega));
+	return so;
+}
+float cookTorranceM = 1.4;
+vec3 cookTorranceBRDF(vec3 rIn, vec3 rOut)
+{
+	hVector = halfwayVec(rIn, rOut);
+	surfaceNormal = vec3(gNormal); 
+	float beta = dot(rOut,hVector); 
+	float f = fresnelFactor(hVector, rOut);
+	float d = cookTorranceBRDF_D(rIn,rOut);
+	float g = cookTorranceBRDF_G(rIn, rOut);
+	vec3 brdf = vec3(1.0,1.0,1.0)*f*d*g/(PI*dot(surfaceNormal,rOut)*dot(surfaceNormal,rIn));
+	return brdf;
+}
+float cookTorranceBRDF_D(vec3 rIn, vec3 rOut)
+{
+	float beta = dot(rOut,hVector);
+	vec3 incidentRay = -rOut;
+	vec3 reflected = incidentRay - 2*(dot(incidentRay,surfaceNormal))*surfaceNormal;
+	reflected = normalize(reflected);
+	float alpha = acos(dot(reflected,rIn));
+	float d = beta*exp(pow(-alpha/cookTorranceM,2.0)); 
+	return d;
+}
+float cookTorranceBRDF_G(vec3 rIn, vec3 rOut)
+{
+	float a = 2*dot(surfaceNormal,hVector)*dot(surfaceNormal,rOut)/(dot(rOut,hVector));
+	float b = 2*dot(surfaceNormal,hVector)*dot(surfaceNormal,rIn)/(dot(rOut,hVector));
+	float g = min(1.0, a);
+	g = min(g,b);
+	return g;
+}
+
+float wardBRDF(vec3 rIn, vec3 rOut)
+{
+	float alpha = 0.5694;
+	surfaceNormal = vec3(gNormal);
+	hVector = halfwayVec(rIn, rOut);
+	float d = 1/sqrt(dot(surfaceNormal,rIn)*dot(surfaceNormal,rOut));
+	float delta = acos(dot(surfaceNormal,hVector));
+	float a = exp(-pow(tan(delta),2.0)/(alpha*alpha));
+	float b = 4*PI*alpha*alpha;
+	return d*(a/b);
+}
+
+/*BRDF DIRECTION RIN AND ROUT BOTH POINT IN THE SAME DIRECTION AS THE NORMAL*/
+float sampleBRDF(vec3 rIn, vec3 rOut)
+{
+	if(brdfType == BRDF_TORRANCE_SPARROW)
+	{
+		return (torranceSparrowBRDF(rIn, rOut)).x;
+	}
+	else if(brdfType == BRDF_BEARD_MAXWELL)
+	{
+		return beardMaxwellBRDF(rIn, rOut).x;
+	}
+	else if(brdfType == BRDF_COOK_TORRANCE)
+	{
+		return cookTorranceBRDF(rIn,rOut).x;
+	}
+	else if(brdfType == BRDF_KAJIYA)
+	{
+	
+	}
+	else if(brdfType == BRDF_POULIN_FOURNIER)
+	{
+	
+	}
+	else if(brdfType == BRDF_HE_TORRANCE_SILLION_GREENBERG)
+	{
+	
+	}
+	else if(brdfType == BRDF_OREN_NAYAR)
+	{
+	
+	}
+	else if(brdfType == BRDF_COUPLED)
+	{
+	
+	}
+	else if(brdfType == BRDF_ASHIKHMIN_SHIRLEY)
+	{
+	
+	}
+	else if(brdfType == BRDF_GRANIER_HEIDRICH)
+	{
+	
+	}
+	else if(brdfType == BRDF_MINNAERT)
+	{
+		return (minnaertBRDF(rIn,rOut)).x;
+	}
+	else if(brdfType == BRDF_PHONG)
+	{
+		return (phongBRDF(rIn,rOut)).x;
+	}
+	else if(brdfType == BRDF_BLINN)
+	{
+		return blinnBRDF(rIn,rOut).x;
+	}
+	else if(brdfType == BRDF_LEWIS)
+	{
+		return lewisBRDF(rIn,rOut).x;
+	}
+	else if(brdfType == BRDF_NEUMANN_NEUMANN)
+	{
+	
+	}
+	else if(brdfType == BRDF_STRAUSS)
+	{
+	
+	}
+	else if(brdfType == BRDF_WARD)
+	{
+		return wardBRDF(rIn,rOut);
+	}
+	else if(brdfType == BRDF_SCHLICK)
+	{
+	
+	}
+	else if(brdfType == BRDF_LAFORTUNE)
+	{
+	
+	}
+	else if(brdfType == BRDF_LAMBERTIAN)
+	{
+		return lambertianBRDF(rIn,rOut).x;
+	}
+	return 0.0;
+
+}
+
+float computeMonteCarloRadiance()
+{
+	int nf = getNumFaceInLight(0);
+
+	if(nf <=0 || nf > 100 )
+	{
+		return 0.0;
+	}
+
+	vec3 n;
+	vec3 ri;
+	vec3 ro = localRayOut();
+
+	float shading = 0.0;
+	int totalSamples = nf*monteCarloIters;
+	int sampleIndex = gl_SampleID;
+	float totalP = 0;
+	for(int i=0; i<nf; i++)
+	{
+		float lightIntensity = getLightIntensity(i);
+		n = getLightNormal(i);
+		vec3 v1 = getLightVertex1(i);
+		vec3 v2 = getLightVertex2(i);
+		vec3 v3 = getLightVertex3(i);
+		vec3 cent = (v1 + v2 + v3)/3.0;
+		/*
+		if(dot(n,normalize(globalPosition-cent)) <= 0.0)
+		*/
+		if(dot(n,vec3(gNormal)) >= 0.0)
+		{
+
+			for(int j=0; j<monteCarloIters; j++)
+			{
+				GaussianSample a =  gaussRand(sampleIndex);
+				GaussianSample b =  gaussRand(sampleIndex++);
+				GaussianSample c =  gaussRand(sampleIndex++);
+				
+				a.s = 0.2*abs(a.s);
+				b.s = 0.2*abs(b.s);
+				c.s = 0.2*abs(c.s);
+
+				float p = a.p*b.p*c.p;
+
+				if(a.s + b.s + c.s <= 1 && p > 0.0)
+				{
+					totalP = totalP + (1.0/p);
+					vec3 v = a.s*v1 + b.s*v2 + c.s*v3;
+					ri = normalize(v - globalPosition);
+					float exitantFactor = lightIntensity*dot(-n,ri);
+					exitantFactor = abs(exitantFactor);
+					
+					float reflectFactor = max(0.0,dot(ri,ro));
+					float brdf = sampleBRDF(ri,ro);
+					brdf = max(0.0,brdf);
+					
+					shading = shading + brdf*exitantFactor/p;
+					
+				}
+			}
+
+		}
+	}
+	if(totalP <= 0)
+	{
+		return 0;
+	}
+	else
+	{
+		shading = 4*PI*shading/(float(totalSamples*totalP));
+		return shading;
+	}
+}
+
+
+float calculateRadiance()
+{
+	int nf = getNumFaceInLight(0);
+
+	if(nf <=0 || nf > 100 )
+	{
+		return 0.0;
+	}
+
+	vec3 n;
+	vec3 ri;
+	vec3 ro = localRayOut();
+
+	float shading = 0.0;
+	int totalSamples = nf*monteCarloIters;
+	float totalP = 0;
+
+	randomSeed = vec2(17,18);
+
+	for(int i=0; i<nf; i++)
+	{
+		float lightIntensity = getLightIntensity(i);
+		n = getLightNormal(i);
+		vec3 p1 = getLightVertex1(i);
+		vec3 p2 = getLightVertex2(i);
+		vec3 p3 = getLightVertex3(i);
+	
+		if(dot(n,vec3(gNormal)) >= 0.0)
+		{
+			float a = 0;
+			float b = 0;
+			float c = 0;
+
+			for(int mci = 0; mci < monteCarloIters; mci++)
+			{
+				a = random();
+				b = random();
+				c = random();
+
+				if(a + b + c != 0)
+				{
+					float pnorm = a + b + c; 
+					vec3 p = (p1*a + p2*b + p3*c)/pnorm;
+
+					ri = normalize(p - globalPosition);
+					float exitantFactor = lightIntensity*dot(-n,ri);
+					exitantFactor = abs(exitantFactor);
+							
+					float reflectFactor = max(0.0,dot(ri,ro));
+					float brdf = sampleBRDF(ri,ro);
+					brdf = max(0.0,brdf);
+							
+					shading = shading + brdf*exitantFactor;	
+				}
+			}
+		}
+	}
+
+	return shading/monteCarloIters;
+	
+}

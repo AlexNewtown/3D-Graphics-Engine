@@ -1,0 +1,96 @@
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat4 normalMatrix;
+uniform mat4 modelViewMatrixInverse;
+uniform mat4 entityNormalMatrix;
+
+uniform mat4 entityMatrix;
+
+vec4 matrixMult(mat4 m, vec4 v);
+vec4 transformEye( vec4 coord);
+vec4 transformClip( vec4 coord);
+
+vec4 clipVertex(vec4 v);
+bool isVertexClipped(vec4 v);
+vec4 perspectiveDivide(vec4 v);
+vec4 windowCoordinates(vec4 v);
+vec4 vertexPostProcessing(vec4 eyeCoords);
+
+vec4 matrixMult(mat4 m, vec4 v)
+{
+	vec4 trans;
+	trans.x = m[0].x*v.x + m[0].y*v.y + m[0].z*v.z + m[0].w*v.w;
+	trans.y = m[1].x*v.x + m[1].y*v.y + m[1].z*v.z + m[1].w*v.w;
+	trans.z = m[2].x*v.x + m[2].y*v.y + m[2].z*v.z + m[2].w*v.w;
+	trans.w = m[3].x*v.x + m[3].y*v.y + m[3].z*v.z + m[3].w*v.w;
+	return trans;
+}
+
+vec4 transformEye( vec4 coord)
+{
+	vec4 ec;
+	ec = matrixMult(modelViewMatrix,coord);
+	return ec;
+}
+
+vec4 transformClip( vec4 coord)
+{
+	vec4 cc;
+	cc = matrixMult(projectionMatrix, coord);
+	return cc;
+}
+
+vec4 clipVertex(vec4 v)
+{
+	vec4 r = v;
+	r.x = max(-r.w,r.x);
+	r.x = min(r.w,r.x);
+
+	r.y = max(-r.w,r.y);
+	r.y = min(r.w,r.y);
+
+	r.z = max(-r.w,r.z);
+	r.z = min(r.w,r.z);
+
+	return r;
+}
+
+bool isVertexClipped(vec4 v)
+{
+	if(v.x <= -v.w || v.x >= v.w)
+		return true;
+	if(v.y <= -v.w || v.y >= v.w)
+		return true;
+	if(v.z <= -v.w || v.z >= v.w)
+		return true;
+
+	return false;
+}
+
+vec4 perspectiveDivide(vec4 v)
+{
+	vec4 r = v;
+	r = r/v.w;
+	return r;
+}
+int width = 1;
+int height = 1;
+float fp = 0;
+float np = 1;
+vec4 windowCoordinates(vec4 v)
+{
+	vec4 r;
+	r.x = 0.5*width*v.x + 0 + 0.5*width;
+	r.y = 0.5*height*v.y + 0 + 0.5*height;
+	r.z = 0.5*(fp - np)*v.z + 0.5*(fp + np);
+	return r;
+}
+
+vec4 vertexPostProcessing(vec4 projectionCoordinates)
+{
+	vec4 v;
+	v = clipVertex(projectionCoordinates);
+	v = perspectiveDivide(v);
+	v = windowCoordinates(v);
+	return v;
+}

@@ -1,0 +1,54 @@
+uniform int numFaceLights;
+uniform isamplerBuffer numFacesPerLight;
+uniform samplerBuffer faceLightTexture;
+
+uniform vec4 globalLightPosition;
+uniform float lightRadius;
+
+int getNumFaceInLight(int lIndex);
+vec3 getLightVertex1(int lIndex);
+vec3 getLightVertex2(int lIndex);
+vec3 getLightVertex3(int lIndex);
+vec3 getLightNormal(int lIndex);
+float getLightIntensity(int lIndex);
+
+int getNumFaceInLight(int lIndex)
+{
+	ivec4 fetch = texelFetch(numFacesPerLight ,lIndex);
+	return fetch.x;
+}
+
+vec3 getLightVertex1(int lIndex)
+{
+	int lookup = lIndex*4;
+	vec4 fetch = texelFetch(faceLightTexture,lookup);
+	return vec3(fetch);
+}
+
+vec3 getLightVertex2(int lIndex)
+{
+	int lookup = lIndex*4;
+	vec4 fetch = texelFetch(faceLightTexture,lookup+1);
+	return vec3(fetch);
+}
+
+vec3 getLightVertex3(int lIndex)
+{
+	int lookup = lIndex*4;
+	vec4 fetch = texelFetch(faceLightTexture,lookup+2);
+	return vec3(fetch);
+}
+
+vec3 getLightNormal(int lIndex)
+{
+	int lookup = lIndex*4;
+	vec4 fetch = texelFetch(faceLightTexture,lookup+3);
+	return vec3(fetch);
+}
+
+float getLightIntensity(int lIndex)
+{
+	int lookup = lIndex*4;
+	vec4 fetch = texelFetch(faceLightTexture,lookup+3);
+	return fetch.w;
+}

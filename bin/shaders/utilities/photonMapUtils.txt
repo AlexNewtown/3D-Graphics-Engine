@@ -1,0 +1,416 @@
+uniform samplerBuffer photonList;
+uniform int numPhotons;
+
+uniform samplerBuffer photonClusterFloat;
+uniform isamplerBuffer photonClusterInt;
+uniform int photonClusterFloatDataSize;
+uniform int photonClusterIntDataSize;
+uniform int photonDataSize;
+uniform int numPhotonClusters;
+
+const int K_NEAREST_PHOTONS = 20;
+const float LINEAR_FILTER_K = 4.0;
+
+int insertedPhotons = 0;
+int photonIndexVec[K_NEAREST_PHOTONS];
+float distanceVec[K_NEAREST_PHOTONS];
+
+struct Photon
+{
+	float pos[3];
+	float dir[3];
+	float illum;
+};
+
+float getPhotonX(int tIndex);
+float getPhotonY(int tIndex);
+float getPhotonZ(int tIndex);
+float getPhotonDirX(int tIndex);
+float getPhotonDirY(int tIndex);
+float getPhotonDirZ(int tIndex);
+float getPhotonIllum(int tIndex);
+void getPhoton(int tIndex, inout Photon p);
+
+float getPhotonClusterX(int tIndex);
+float getPhotonClusterY(int tIndex);
+float getPhotonClusterZ(int tIndex);
+float getPhotonClusterRadius(int tIndex);
+
+int getPhotonClusterStart(int tIndex);
+int getPhotonClusterEnd(int tIndex);
+
+vec3 photonIrradiance(vec3 position, vec3 normal);
+vec3 reducedIncidentRadiancePhotonMap(vec3 position, vec3 normal);
+vec3 photonIrradianceTransmitted(vec3 position, vec3 normal, bool search);
+vec3 photonIrradianceReflected(vec3 position, vec3 normal, bool search);
+
+void insertPhoton(int photonIndex, float photonDist);
+float getMaxPhotonRadius();
+void insertPhoton(int photonIndex, vec3 position);
+void initVectors();
+void knnSearch(vec3 position);
+
+
+float getPhotonX(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.y;
+}
+float getPhotonY(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.z;
+}
+float getPhotonZ(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex);
+	return fetch.w;
+}
+float getPhotonDirX(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.x;
+}
+float getPhotonDirY(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.y;
+}
+float getPhotonDirZ(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.z;
+}
+float getPhotonIllum(int tIndex)
+{
+	int texIndex = tIndex*photonDataSize;
+	vec4 fetch = texelFetch(photonList,texIndex + 1);
+	return fetch.w;
+}
+
+void getPhoton(int tIndex, inout Photon p)
+{
+	p.pos[0] = getPhotonX(tIndex);
+	p.pos[1] = getPhotonY(tIndex);
+	p.pos[2] = getPhotonZ(tIndex);
+
+	p.dir[0] = getPhotonDirX(tIndex);
+	p.dir[1] = getPhotonDirY(tIndex);
+	p.dir[2] = getPhotonDirZ(tIndex);
+
+	p.illum = getPhotonIllum(tIndex);
+}
+
+float getPhotonClusterX(int tIndex)
+{
+	int texIndex = tIndex*photonClusterFloatDataSize;
+	vec4 fetch = texelFetch(photonClusterFloat,texIndex);
+	return fetch.x;
+}
+float getPhotonClusterY(int tIndex)
+{
+	int texIndex = tIndex*photonClusterFloatDataSize;
+	vec4 fetch = texelFetch(photonClusterFloat,texIndex);
+	return fetch.y;
+}
+float getPhotonClusterZ(int tIndex)
+{
+	int texIndex = tIndex*photonClusterFloatDataSize;
+	vec4 fetch = texelFetch(photonClusterFloat,texIndex);
+	return fetch.z;
+}
+float getPhotonClusterRadius(int tIndex)
+{
+	int texIndex = tIndex*photonClusterFloatDataSize;
+	vec4 fetch = texelFetch(photonClusterFloat,texIndex);
+	return fetch.w;
+}
+
+int getPhotonClusterStart(int tIndex)
+{
+	int texIndex = tIndex*photonClusterIntDataSize;
+	ivec4 fetch = texelFetch(photonClusterInt,texIndex);
+	return fetch.x;
+}
+int getPhotonClusterEnd(int tIndex)
+{
+	int texIndex = tIndex*photonClusterIntDataSize;
+	ivec4 fetch = texelFetch(photonClusterInt,texIndex);
+	return fetch.y;
+}
+
+void insertPhoton(int photonIndex, float photonDist)
+{
+	int insertIndex = 0;
+	for(insertIndex=0; insertIndex<insertedPhotons; insertIndex++)
+	{
+		if(photonDist < distanceVec[insertIndex])
+			break;
+	}
+	if( insertIndex >= K_NEAREST_PHOTONS)
+		return;
+
+	/*insertIndex = min(insertIndex++,K_NEAREST_PHOTONS);*/
+
+	for(int i=K_NEAREST_PHOTONS - 1; i> insertIndex; i--)
+	{
+		photonIndexVec[i] = photonIndexVec[i - 1];
+		distanceVec[i] = distanceVec[i - 1];
+	}
+	photonIndexVec[insertIndex] = photonIndex;
+	distanceVec[insertIndex] = photonDist;
+
+	insertedPhotons = insertedPhotons + 1;
+	insertedPhotons = min(insertedPhotons,K_NEAREST_PHOTONS);
+}
+
+float getMaxPhotonRadius()
+{
+	if(insertedPhotons == 0 || insertedPhotons > K_NEAREST_PHOTONS)
+		return 99999.0;
+	else
+		return distanceVec[insertedPhotons - 1];
+}
+
+void insertPhoton(int photonIndex, vec3 position)
+{
+	Photon photon;
+	getPhoton(photonIndex, photon);
+	float dist;
+	dist = pow(photon.pos[0] - position.x,2.0) + pow(photon.pos[1] - position.y,2.0) + pow(photon.pos[2] - position.z,2.0);
+	dist = sqrt(dist);
+	insertPhoton(photonIndex,dist);
+}
+
+void initVectors()
+{
+	for(int i=0; i<K_NEAREST_PHOTONS; i++)
+	{
+		distanceVec[i] = 99999.0;
+		photonIndexVec[i]  = -1;
+	}
+}
+
+void knnSearch(vec3 position)
+{
+	initVectors();
+
+	int cluster = 0;
+	float minDist = 0.0;
+	float maxDist = 99999.0;
+	
+	for(int refinementIndex = 0; refinementIndex < numPhotonClusters; refinementIndex++)
+	{
+
+		for(int i=0; i < numPhotonClusters; i++)
+		{
+			vec3 clusterPos = vec3(getPhotonClusterX(i),getPhotonClusterY(i),getPhotonClusterZ(i));
+			float distToCluster = length(position - clusterPos);
+
+			if(distToCluster < maxDist && distToCluster > minDist)
+			{
+				maxDist = distToCluster;
+				cluster = i;
+			}
+		}
+		float clusterRadius = getPhotonClusterRadius(cluster);
+		float photonRadius = getMaxPhotonRadius();
+		if(maxDist > photonRadius +  clusterRadius)
+			break;
+
+		int startIndex =  getPhotonClusterStart(cluster);
+		int endIndex =  getPhotonClusterEnd(cluster);
+
+		for(int i=startIndex; i < endIndex; i++)
+		{
+			insertPhoton(i,position);
+		}
+		minDist = maxDist;
+		maxDist = 99999.0;
+
+		
+	}
+}
+
+vec3 photonIrradiance(vec3 position, vec3 normal)
+{
+	knnSearch(position);
+
+	float irr = 0.0;
+	Photon photon;
+	float r = getMaxPhotonRadius();
+	float k = 1.1;
+	vec3 photonDir;
+
+	for(int i=0; i <insertedPhotons; i++)
+	{
+		getPhoton(photonIndexVec[i], photon);
+		float dist = distanceVec[i];
+		float wp = (1.0 - (dist/(k*r)));
+		photonDir = vec3(photon.dir[0],photon.dir[1],photon.dir[2]);
+		irr = irr + wp*photon.illum*dot(-photonDir,normal);
+	}
+	
+	float area = r*r*3.1415926;
+	irr = irr / (area*(1.0 - (2.0/(3.0*k))));
+	irr = max(0,irr);
+	irr = min(irr,1.0);
+
+	return irr*vec3(1.0,1.0,1.0);
+}
+
+vec3 photonIrradianceReflected(vec3 position, vec3 normal, bool search)
+{
+	if(search)
+		knnSearch(position);
+	
+	Photon photon;
+
+	vec3 a = vec3(0.032,0.17,0.48);
+	vec3 rs = vec3(0.74,0.88,1.01);
+
+	float r = getMaxPhotonRadius();
+	float k = LINEAR_FILTER_K;
+	vec3 photonDir;
+	vec3 photonPos;
+	vec3 irr = vec3(0.0,0.0,0.0);
+	int numContPhotons = 0;
+
+	for(int i=0; i <insertedPhotons; i++)
+	{
+		getPhoton(photonIndexVec[i], photon);
+		float dist = distanceVec[i];
+		
+		photonDir = vec3(photon.dir[0],photon.dir[1],photon.dir[2]);
+		photonPos = vec3(photon.pos[0],photon.pos[1],photon.pos[2]);
+
+		float cosAngle = dot(normal,-photonDir);
+		float ff = fresnelFactor(cosAngle);
+
+		float wp = (1.0 - (dist/(k*r)));
+		irr = irr + photon.illum*wp*ff*dot(-photonDir,normal);
+	}
+	float area = r*r*3.1415926;
+	irr = irr / (area*(1.0 - (2.0/(3.0*k))));
+	
+	irr.x = max(0,irr.x);
+	irr.y = max(0,irr.y);
+	irr.z = max(0,irr.z);
+
+	irr.x = min(irr.x,1.0);
+	irr.y = min(irr.y,1.0);
+	irr.z = min(irr.z,1.0);
+
+	return irr;
+}
+
+vec3 photonIrradianceTransmitted(vec3 position, vec3 normal, bool search)
+{
+	if(search)
+		knnSearch(position);
+	
+	Photon photon;
+
+	vec3 a = vec3(0.032,0.17,0.48);
+	vec3 rs = vec3(0.74,0.88,1.01);
+
+	float r = getMaxPhotonRadius();
+	float k = LINEAR_FILTER_K;
+	vec3 photonDir;
+	vec3 photonPos;
+	vec3 irr = vec3(0.0,0.0,0.0);
+	int numContPhotons = 0;
+
+	for(int i=0; i <insertedPhotons; i++)
+	{
+		getPhoton(photonIndexVec[i], photon);
+		float dist = distanceVec[i];
+		
+		photonDir = vec3(photon.dir[0],photon.dir[1],photon.dir[2]);
+		photonPos = vec3(photon.pos[0],photon.pos[1],photon.pos[2]);
+
+		float cosAngle = dot(normal,-photonDir);
+		float ff = fresnelFactor(cosAngle);
+		ff = max(0,ff);
+		ff = min(1.0,ff);
+		ff = 1.0 - ff*ff;
+		ff = sqrt(ff);
+
+		float wp = (1.0 - (dist/(k*r)));
+		irr = irr + photon.illum*wp*ff*dot(-photonDir,normal);
+	}
+	float area = r*r*3.1415926;
+	irr = irr / (area*(1.0 - (2.0/(3.0*k))));
+	
+	irr.x = max(0,irr.x);
+	irr.y = max(0,irr.y);
+	irr.z = max(0,irr.z);
+
+	irr.x = min(irr.x,1.0);
+	irr.y = min(irr.y,1.0);
+	irr.z = min(irr.z,1.0);
+
+	return irr;
+}
+
+vec3 reducedIncidentRadiancePhotonMap(vec3 position, vec3 normal)
+{
+	knnSearch(position);
+
+	Photon photon;
+
+	vec3 a = vec3(0.032,0.17,0.48);
+	vec3 rs = vec3(0.74,0.88,1.01);
+	vec3 sigtr = sqrt(3*a*(a + rs));
+
+	float r = getMaxPhotonRadius();
+	float k = 1.1;
+	vec3 photonDir;
+	vec3 photonPos;
+	vec3 irr = vec3(0.0,0.0,0.0);
+	int numContPhotons = 0;
+	for(int i=0; i <insertedPhotons; i++)
+	{
+		getPhoton(photonIndexVec[i], photon);
+		float dist = distanceVec[i];
+		
+		photonDir = vec3(photon.dir[0],photon.dir[1],photon.dir[2]);
+		photonPos = vec3(photon.pos[0],photon.pos[1],photon.pos[2]);
+
+		if(dot(normal,photonDir) > 0.0)
+		{
+			float ff = fresnelFactor(dot(normal,photonDir));
+			ff = 1.0 - ff*ff;
+			ff = sqrt(ff);
+		
+			vec3 reduced = exp(-dist*sigtr);
+			vec3 reducedDir = position - photonPos;
+			reducedDir = normalize(reducedDir);
+
+			/*irr = irr + ff*reducedIncidentRadiance(photonPos,position, normal, a, rs, 1.44);*/
+			irr = irr + ff*reduced/(4*3.141592);
+			numContPhotons++;
+		}
+	}
+
+	return irr;
+
+	float area = r*r*3.1415926;
+	irr = irr / (area*(1.0 - (2.0/(3.0*k))));
+	
+	irr.x = max(0,irr.x);
+	irr.y = max(0,irr.y);
+	irr.z = max(0,irr.z);
+
+	irr.x = min(irr.x,1.0);
+	irr.y = min(irr.y,1.0);
+	irr.z = min(irr.z,1.0);
+
+	return irr;
+}

@@ -1,1 +1,1 @@
-# Global-Illumination
+# Global Illumination

@@ -1,0 +1,264 @@
+uniform isamplerBuffer materialTexInt;
+uniform int materialTexIntSize;
+uniform samplerBuffer materialTexFloat;
+uniform int materialTexFloatSize;
+
+uniform float isKdTexBound;
+uniform sampler2DArray kdTexture;
+uniform float isBumpMapTextureBound;
+uniform sampler2DArray bumpMapTexture;
+
+uniform vec3 absorption;
+uniform vec3 reducedScattering;
+
+vec3 getMaterialKa(int matIndex);
+vec3 getMaterialKd(int matIndex);
+vec3 getMaterialKs(int matIndex);
+vec3 getMaterialTf(int matIndex);
+float getMaterialNi(int matIndex);
+float getMaterialNs(int matIndex);
+float getMaterialD(int matIndex);
+float getMaterialSharpness(int matIndex);
+int getMaterialIllum(int matIndex);
+vec3 pixelColor(vec2 texCoord, int materialIndex);
+vec3 getBumpMapNormal(vec3 bX, vec3 bY, vec2 texCoord, int materialIndex, vec3 normal);
+float diffuseWeight(vec4 position, vec4 normal);
+float diffuseWeight(vec3 position, vec3 normal);
+
+vec3 reducedIncidentRadiance(vec3 xIn, vec3 xOut, vec3 n, vec3 a, vec3 rs, float indexOfRefraction);
+vec3 subsurfaceScatteringInf(vec3 xIn, vec3 xOut, vec3 n, vec3 a, vec3 rs, float indexOfRefraction);
+vec3 subsurfaceScatteringThin(vec3 xIn, vec3 xOut, vec3 n, vec3 a, vec3 rs, float indexOfRefraction, float depth);
+
+vec3 getMaterialKa(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex);
+	return vec3(fetch);
+}
+float getMaterialNi(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex);
+	return fetch.w;
+}
+
+vec3 getMaterialKd(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex + 1);
+	return vec3(fetch);
+}
+float getMaterialNs(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex + 1);
+	return fetch.w;
+}
+
+vec3 getMaterialKs(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex + 2);
+	return vec3(fetch);
+}
+float getMaterialD(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex + 2);
+	return fetch.w;
+}
+
+vec3 getMaterialTf(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex + 3);
+	return vec3(fetch);
+}
+float getMaterialSharpness(int matIndex)
+{
+	int texIndex = matIndex*materialTexFloatSize;
+	vec4 fetch = texelFetch(materialTexFloat,texIndex + 3);
+	return fetch.w;
+}
+int getMaterialIllum(int matIndex)
+{
+	int texIndex = matIndex*materialTexIntSize;
+	ivec4 fetch = texelFetch(materialTexInt,texIndex);
+	return fetch.y;
+}
+
+vec3 pixelColor(vec2 texCoord, int materialIndex)
+{
+	vec3 texLookup;
+	texLookup = isKdTexBound*vec3(texture(kdTexture,vec3(texCoord.x,1 - texCoord.y, float(materialIndex))));
+	texLookup = texLookup + (1.0 - isKdTexBound)*getMaterialKd(materialIndex);
+	return texLookup;
+}
+
+uniform float bumpMapEpsX;
+uniform float bumpMapEpsY;
+
+vec3 getBumpMapNormal(vec3 bX, vec3 bZ, vec2 texCoord, int materialIndex, vec3 normal)
+{
+	float bumpLookup;
+	float bumpLookupEps1;
+	float bumpLookupEps2;
+	float bumpLookupEps3;
+
+	vec2 texLookup = texCoord;
+	vec2 texLookupEps1 = texCoord + vec2(1.0,0.0)*bumpMapEpsX;
+	vec2 texLookupEps2 = texCoord + vec2(0.0,1.0)*bumpMapEpsY;
+
+	bumpLookup = isBumpMapTextureBound*vec3(texture(bumpMapTexture,vec3(texLookup.x,1.0 - texLookup.y, float(materialIndex)))).x;
+	bumpLookupEps1 = isBumpMapTextureBound*vec3(texture(bumpMapTexture,vec3(texLookupEps1.x,1.0 - texLookupEps1.y, float(materialIndex)))).x;
+	bumpLookupEps2 = isBumpMapTextureBound*vec3(texture(bumpMapTexture,vec3(texLookupEps2.x,1.0 - texLookupEps2.y, float(materialIndex)))).x;
+
+	vec3 norm = (bX*(bumpLookupEps1 - bumpLookup) + bZ*(bumpLookupEps2 - bumpLookup)) + normal;
+	norm = normalize(norm);
+	return norm;
+}
+
+float diffuseWeight(vec4 position, vec4 normal)
+{
+	return dot(normalize(-vec3(position)), vec3(normal) );
+}
+float diffuseWeight(vec3 position, vec3 normal)
+{
+	return dot(normalize(-position),normal);
+}
+
+vec3 reducedIncidentRadiance(vec3 xIn, vec3 xOut, vec3 n, vec3 a, vec3 rs, float indexOfRefraction)
+{
+	vec3 extinction = a + rs;
+
+	float dist = length(xIn - xOut);
+	vec3 rad = vec3(0.0,0.0,0.0);
+	rad.x = exp(-extinction.x*dist);
+	rad.y = exp(-extinction.y*dist);
+	rad.z = exp(-extinction.z*dist);
+	return rad;
+
+	vec3 albedo = rs/extinction;
+	vec3 zr = vec3(1.0/extinction.x, 1.0/extinction.y, 1.0/extinction.z);
+	vec3 sigtr = sqrt(3*a*extinction);
+	float fdr = -1.44/(indexOfRefraction*indexOfRefraction) + 0.71/indexOfRefraction + 0.688 + 0.0636*indexOfRefraction;
+	float A = (1.0 + fdr)/(1.0 - fdr);
+	vec3 D = 1.0/(3.0*extinction);
+	vec3 zv = zr + 4*A*D;
+
+	n = normalize(xOut - xIn);
+
+	vec3 xr_red = xIn - zr.x*n;
+	vec3 xv_red = xIn + zr.x*n;
+
+	vec3 xr_greed = xIn - zr.y*n;
+	vec3 xv_green = xIn + zr.y*n;
+
+	vec3 xr_blue = xIn - zr.z*n;
+	vec3 xv_blue = xIn + zr.z*n;
+
+
+	float dr_red = length( xr_red - xOut );
+	float dv_red = length( xv_red - xOut );
+
+	float dr_green = length( xr_greed - xOut );
+	float dv_green = length( xv_green - xOut );
+
+	float dr_blue = length( xr_blue - xOut );
+	float dv_blue = length( xv_blue - xOut );
+
+
+	vec3 exitantRadiance = vec3(0.0,0.0,0.0);
+
+	exitantRadiance.x = (albedo.x/4*3.1415)*(zr.x*(sigtr.x*dr_red + 1.0)*(exp(-sigtr.x*dr_red)/(extinction.x*pow(dr_red,3.0))) + zv.x*(sigtr.x*dv_red + 1.0)*(exp(-sigtr.x*dv_red)/(extinction.x*pow(dv_red,3.0))) );
+	exitantRadiance.y = (albedo.x/4*3.1415)*(zr.y*(sigtr.y*dr_green + 1.0)*(exp(-sigtr.y*dr_green)/(extinction.y*pow(dr_green,3.0))) + zv.y*(sigtr.y*dv_green + 1.0)*(exp(-sigtr.y*dv_green)/(extinction.y*pow(dv_green,3.0))) );
+	exitantRadiance.z = (albedo.x/4*3.1415)*(zr.z*(sigtr.z*dr_blue + 1.0)*(exp(-sigtr.z*dr_blue)/(extinction.z*pow(dr_blue,3.0))) + zv.z*(sigtr.z*dv_blue + 1.0)*(exp(-sigtr.z*dv_blue)/(extinction.z*pow(dv_blue,3.0))) );
+
+	return exitantRadiance;
+}
+
+vec3 subsurfaceScatteringInf(vec3 xIn, vec3 xOut, vec3 n, vec3 absorption, vec3 reducedScattering, float indexOfRefraction)
+{
+	/*
+	vec3 extinction = a + rs;
+
+	float dist = length(xIn - xOut);
+	vec3 rad = vec3(0.0,0.0,0.0);
+	rad.x = exp(-extinction.x*dist);
+	rad.y = exp(-extinction.y*dist);
+	rad.z = exp(-extinction.z*dist);
+
+	vec3 albedo = rs/extinction;
+	vec3 sigtr = sqrt(3*a*extinction);
+	float fdr = -1.44/(indexOfRefraction*indexOfRefraction) + 0.71/indexOfRefraction + 0.688 + 0.0636*indexOfRefraction;
+	float A = (1.0 + fdr)/(1.0 - fdr);
+	vec3 D = 1.0/(3.0*extinction);
+	
+	vec3 zr = vec3(1.0/extinction.x, 1.0/extinction.y, 1.0/extinction.z);
+	vec3 zv = zr + 4*A*D;
+
+	float dr = length(xOut - zr);
+	float dv = length(xOut - zv);
+
+	vec3 exitantRadiance = vec3(0.0,0.0,0.0);
+
+	exitantRadiance = (albedo/(4*3.1415))*( (sigtr*dr + 1.0)*exp(-sigtr*dr)/(extinction*pow(dr,3.0)) + zv*(sigtr*dv + 1.0)*exp(-sigtr*dv)/(extinction*pow(dv,3.0)) );
+	return exitantRadiance;
+	*/
+
+	/*variables*/
+	vec3 sigmaT = absorption + reducedScattering;
+	vec3 alphaPrime = reducedScattering/sigmaT;
+	vec3 sigmaTR = sqrt(3*absorption*sigmaT);
+	float fdr = -1.44/(indexOfRefraction*indexOfRefraction) + 0.71/indexOfRefraction + 0.688 + 0.0636*indexOfRefraction;
+	float A = (1.0 + fdr)/(1.0 - fdr);
+	vec3 D = 1.0/(3*sigmaT);
+	vec3 zr = 1.0/sigmaT;
+	vec3 zv = zr + 4*A*D;
+	vec3 xr = xIn - zr*n;
+	vec3 xv = xIn + zv*n;
+	float dr = length(xr - xOut);
+	float dv = length(xv - xOut);
+
+	vec3 exitantRadiance;
+	exitantRadiance = zr*(sigmaTR*dr + 1.0)*(exp(-sigmaTR*dr)/(sigmaT*pow(dr,3.0)));
+	exitantRadiance = exitantRadiance + zv*(sigmaTR*dv + 1.0)*(exp(-sigmaTR*dv)/(sigmaT*pow(dv,3.0)));
+	exitantRadiance = exitantRadiance*(alphaPrime/(4*3.1415));
+	return exitantRadiance;
+}
+vec3 subsurfaceScatteringThin(vec3 xIn, vec3 xOut, vec3 n, vec3 a, vec3 rs, float indexOfRefraction, float depth)
+{
+	vec3 extinction = a + rs;
+
+	float dist = length(xIn - xOut);
+	vec3 rad = vec3(0.0,0.0,0.0);
+	rad.x = exp(-extinction.x*dist);
+	rad.y = exp(-extinction.y*dist);
+	rad.z = exp(-extinction.z*dist);
+
+	vec3 albedo = rs/extinction;
+	
+	vec3 sigtr = sqrt(3.0*a*extinction);
+	float fdr = -1.44/(indexOfRefraction*indexOfRefraction) + 0.71/indexOfRefraction + 0.688 + 0.0636*indexOfRefraction;
+	float A = (1.0 + fdr)/(1.0 - fdr);
+	vec3 D = 1.0/(3.0*extinction);
+	vec3 zb = 2.0*A*D;
+	vec3 l = 1.0/extinction;
+
+	vec3 exitantRadiance = vec3(0.0,0.0,0.0);
+
+	int dipoleIndex = 0;
+	for(dipoleIndex = -3; dipoleIndex <= 3; dipoleIndex++)
+	{
+		vec3 zr = 2.0*float(dipoleIndex)*(depth + 2*zb) + l*n;
+		vec3 zv = 2.0*float(dipoleIndex)*(depth + 2*zb) - l*n - 2.0*zb;
+
+		float dr = sqrt(pow(length(xOut - zr),2.0) + pow(dist,2.0));
+		float dv = sqrt(pow(length(xOut - zv),2.0) + pow(dist,2.0));
+
+		exitantRadiance.x = exitantRadiance.x + albedo.x*zr.x*(1.0 + sigtr.x*dr)*exp(-sigtr.x*dr)/(4*3.1415926*pow(dr,3.0)) - albedo.x*zv.x*(1.0 + sigtr.x*dv)*exp(-sigtr.x*dv)/(4*3.1415926*pow(dv,3.0));
+		exitantRadiance.y = exitantRadiance.y + albedo.y*zr.y*(1.0 + sigtr.y*dr)*exp(-sigtr.y*dr)/(4*3.1415926*pow(dr,3.0)) - albedo.y*zv.y*(1.0 + sigtr.y*dv)*exp(-sigtr.y*dv)/(4*3.1415926*pow(dv,3.0));
+		exitantRadiance.z = exitantRadiance.z + albedo.z*zr.z*(1.0 + sigtr.z*dr)*exp(-sigtr.z*dr)/(4*3.1415926*pow(dr,3.0)) - albedo.z*zv.z*(1.0 + sigtr.z*dv)*exp(-sigtr.z*dv)/(4*3.1415926*pow(dv,3.0));
+	}
+	return exitantRadiance;
+}
