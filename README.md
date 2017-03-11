@@ -4,16 +4,16 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 
 ##Editor
 
--add entite(s), supports wavefront (.obj).
--entity parameters: BRDF type, index of refraction, absorption coefficient, reduced scattering coefficient.
--add lights.
--set shading type.
++ add entite(s), supports wavefront (.obj).
++ entity parameters: BRDF type, index of refraction, absorption coefficient, reduced scattering coefficient.
++ add lights.
++set shading type.
 
 ###Controls:
-wasd or right mouse button moves camera.
-left mouse selects entities.
-file->Export Scene, exports the scene data to a file.
-file->Import Scene, imports the scene data from a file.
++ wasd or right mouse button moves camera.
++ left mouse selects entities.
++ file->Export Scene, exports the scene data to a file.
++ file->Import Scene, imports the scene data from a file.
 
 ##Algorithms
 
