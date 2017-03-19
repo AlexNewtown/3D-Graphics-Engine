@@ -8,8 +8,8 @@ uniform int photonClusterIntDataSize;
 uniform int photonDataSize;
 uniform int numPhotonClusters;
 
-const int K_NEAREST_PHOTONS = 20;
-const float LINEAR_FILTER_K = 4.0;
+const int K_NEAREST_PHOTONS = 15;
+const float LINEAR_FILTER_K = 1.0;
 
 int insertedPhotons = 0;
 int photonIndexVec[K_NEAREST_PHOTONS];

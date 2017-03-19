@@ -139,7 +139,7 @@ public:
 
 	const std::string entityName();
 
-private:
+
 	void computeLocalMatrix();
 	void computeGlobalMatrix(Camera* cam);
 	void computeNormalMatrix();

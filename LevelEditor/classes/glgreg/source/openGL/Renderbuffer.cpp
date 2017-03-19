@@ -10,6 +10,11 @@
 
 #include "openGL\Renderbuffer.h"
 
+Renderbuffer::Renderbuffer()
+{
+
+}
+
 /*
 Renderbuffer constructor
 @param int w : screen width
@@ -54,4 +59,23 @@ Renderbuffer::~Renderbuffer()
 {
 	glDeleteRenderbuffers(1, &rbo);
 	delete framebuffer;
+}
+
+RenderbufferMS::RenderbufferMS(int w, int h, int colorFormat) 
+{
+	width = w;
+	height = h;
+	/*instantiate a framebuffer object*/
+	framebuffer = new FramebufferMS(w, h, colorFormat);
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->fbo);
+
+	glGenRenderbuffers(1, &rbo);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+RenderbufferMS::~RenderbufferMS()
+{
+
 }

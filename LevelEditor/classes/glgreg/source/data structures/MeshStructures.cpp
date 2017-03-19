@@ -15,6 +15,9 @@ Face::Face()
 		normal[i] = NULL;
 		texCoord[i] = NULL;
 		avg[i] = 0;
+		vertIndex[i] = 0;
+		normalIndex[i] = 0;
+		texCoordIndex[i] = 0;
 	}
 	brdfIndex = 0;
 }

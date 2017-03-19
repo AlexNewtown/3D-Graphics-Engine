@@ -7,8 +7,8 @@ in vec4 gNormal;
 flat in int gMaterialIndex;
 in vec2 gTextureCoord;
 vec3 globalPosition;
-flat in vec3 basisX;
-flat in vec3 basisZ;
+in vec3 basisX;
+in vec3 basisZ;
 
 flat in vec2 texVert1;
 flat in vec2 texVert2;
@@ -66,6 +66,7 @@ void main()
 	color = color*diffuseWeight(gPosition,gNormal);
 	*/
 
+	//outColor = vec4(reflectedColor + subsurfaceScattering(),1.0);
 	outColor = vec4(reflectedColor + subsurfaceScattering(),1.0);
 	fragDepth = gl_FragDepth;
 }
@@ -75,18 +76,12 @@ vec3 computeBumpMapNormal()
 	return getBumpMapNormal(basisX, basisZ, gTextureCoord, gMaterialIndex, vec3(gNormal));
 }
 
-const float DELTA_SAMPLE = 0.01;
-const int NUM_DIPOLE_SAMPLES = 6;
+const float DELTA_SAMPLE = 0.00001;
+const int NUM_DIPOLE_SAMPLES = 10;
 vec3 subsurfaceScattering()
 {
 	vec3 position = vec3(gPosition);
 	vec3 normal = computeBumpMapNormal();
-	
-	vec3 a = vec3(0.032,0.17,0.48);
-	vec3 rs = vec3(0.74,0.88,1.01);
-	//vec3 a = vec3(0.0021, 0.0041, 0.0071);
-	//vec3 rs = vec3(2.19, 2.62, 3.00);
-	float ior = 1.5;
 
 	vec2 texSample;
 	vec3 sss = vec3(0.0,0.0,0.0);
@@ -100,8 +95,9 @@ vec3 subsurfaceScattering()
 
 			vec3 outPosition = vec3(texture(globalPositionTex,vec3(texSample,float(gMaterialIndex))));
 			vec3 transmittanceColor = vec3(texture(transmittanceRadiance,vec3(texSample,float(gMaterialIndex))));
-			//vec3 ssSample = transmittanceColor*subsurfaceScatteringInf(position, outPosition, normal, a, rs, 1.44);
-			vec3 ssSample = subsurfaceScatteringThin(position, outPosition, normal, a, rs, ior, depthSample);
+			//vec3 ssSample = transmittanceColor*subsurfaceScatteringThin(position, outPosition, normal, absorption, reducedScattering, indexOfRefraction, depthSample);
+			vec3 ssSample = transmittanceColor*subsurfaceScatteringInf(position, outPosition, normal, absorption, reducedScattering, indexOfRefraction);
+			//ssSample = min(vec3(1.0,1.0,1.0),ssSample);
 			sss = sss + ssSample;
 		}
 	}

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <lodepng.h>
+#include <opencv2/opencv.hpp>
 
 #define VERTEX_IDENTIFIER 0
 #define FACE_IDENTIFIER 1
@@ -693,16 +694,18 @@ void ObjLoader::addNewMaterialMapKd(std::string &line)
 {
 	(__materials[__materials.size() - 1])->texture = loadTexture(line);
 	(__materials[__materials.size() - 1])->kdTextureName = line;
+	(__materials[__materials.size() - 1])->isTexBound = 1;
 }
 void ObjLoader::addNewBumbMapTexture(std::string &line)
 {
 	(__materials[__materials.size() - 1])->bumpMapTexture = loadTexture(line);
 	(__materials[__materials.size() - 1])->bumpMapName = line;
+	(__materials[__materials.size() - 1])->isBumpTexBound = 1;
 }
 
-Texture_obj<GLubyte>* ObjLoader::loadTexture(std::string textureName)
+Texture_obj<GLfloat>* ObjLoader::loadTexture(std::string textureName)
 {
-	GLubyte* texData;
+	GLfloat* texData;
 	int width;
 	int height;
 	int channelSize;
@@ -717,6 +720,7 @@ Texture_obj<GLubyte>* ObjLoader::loadTexture(std::string textureName)
 		}
 	}
 
+	/*
 	std::vector<unsigned char> image;
 	unsigned int w;
 	unsigned int h;
@@ -752,11 +756,54 @@ Texture_obj<GLubyte>* ObjLoader::loadTexture(std::string textureName)
 		texData = texDataTest;
 		channelSize = 4;
 	}
+	*/
 
-	Texture_obj<GLubyte>* tex = NULL;
+	cv::Mat im = cv::imread(filePath, cv::IMREAD_UNCHANGED);
+	//cv::resize(im, im, cv::Size(512, 512), 0.0, 0.0, CV_INTER_CUBIC);
+
+	width = im.rows;
+	height = im.cols;
+	int cs = im.channels();
+	channelSize = 4;
+	texData = new GLfloat[width*height*channelSize];
+	int texDataIndex = 0;
+	int matTexDataIndex = 0;
+
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			for (int i = 0; i < 3; i++)
+			{
+				texData[texDataIndex + i] = 0.0;
+			}
+			texData[texDataIndex + 3] = 1.0;
+
+			for (int i = 0; i < cs; i++)
+			{
+				unsigned char sample = im.data[matTexDataIndex + i];
+				texData[texDataIndex + i] = ((GLfloat)sample) / 255.0;
+			}
+			if (cs == 1)
+			{
+				texData[texDataIndex + 1] = texData[texDataIndex];
+				texData[texDataIndex + 2] = texData[texDataIndex];
+			}
+			else
+			{
+				float temp = texData[texDataIndex];
+				texData[texDataIndex] = texData[texDataIndex + 2];
+				texData[texDataIndex + 2] = temp;
+			}
+			texDataIndex = texDataIndex + 4;
+			matTexDataIndex = matTexDataIndex + cs;
+		}
+	}
+
+	Texture_obj<GLfloat>* tex = NULL;
 	if (texData != NULL)
 	{
-		tex = new Texture_obj<GLubyte>();
+		tex = new Texture_obj<GLfloat>();
 		tex->width = width;
 		tex->height = height;
 		tex->channelSize = channelSize;
@@ -800,12 +847,12 @@ void ObjLoader::resizeTexturesToMatch()
 
 		if(__materials[currentFace->materialIndex]->texture == NULL)
 		{
-			__materials[currentFace->materialIndex]->texture = new Texture_obj<GLubyte>();
+			__materials[currentFace->materialIndex]->texture = new Texture_obj<GLfloat>();
 			__materials[currentFace->materialIndex]->texture->width = largestWidth;
 			__materials[currentFace->materialIndex]->texture->height = largestHeight;
 			__materials[currentFace->materialIndex]->texture->channelSize = 3;
 			
-			__materials[currentFace->materialIndex]->texture->buf = (GLubyte*)malloc(sizeof(GLubyte)*3*largestWidth*largestHeight);
+			__materials[currentFace->materialIndex]->texture->buf = (GLfloat*)malloc(sizeof(GLfloat)*3*largestWidth*largestHeight);
 
 			for(int j=0; j<3*largestWidth*largestHeight; j = j+3)
 			{
@@ -880,6 +927,7 @@ Material::Material()
 	sharpness = 0.0;
 	illum = 0;
 	bumpMapMult = 0.0;
+	isTexBound = 0;
 
 	texture = NULL;
 	bumpMapTexture = NULL;

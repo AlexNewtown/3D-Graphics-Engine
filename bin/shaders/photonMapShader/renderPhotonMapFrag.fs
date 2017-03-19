@@ -16,8 +16,8 @@ vec3 computeBumpMapNormal();
 void main()
 {
 	vec3 color;
-	
-
+	vec3 n = computeBumpMapNormal();
+	/*
 	float s = 0;
 	color = pixelColor(gTextureCoord, gMaterialIndex);
 	float direct = 1.0;
@@ -28,7 +28,7 @@ void main()
 		vec4 lightCameraTransform = matrixMult(lightCameraMatrix[i],gLocalPosition);
 		vec3 lightDirection = -normalize(vec3(lightCameraTransform));
 		
-		/*vec3 viewingDirection = -normalize(vec3(gPosition));*/
+		//vec3 viewingDirection = -normalize(vec3(gPosition));
 		vec3 viewingDirection = -normalize(vec3(globalPosition));
 		
 		float f = sampleBRDF(lightDirection, viewingDirection, n, gMaterialIndex, gTextureCoord);
@@ -37,10 +37,10 @@ void main()
 
 	s = max(0,s);
 	color = color*s;
+	*/
 
 	vec3 photomMapColor = vec3(texture(photonMapDiffuseTexture,vec3(gTextureCoord,float(gMaterialIndex))));
-	color = color + photomMapColor;
-	//color = color*diffuseWeight(gPosition,vec4(n,0.0));
+	color = photomMapColor*diffuseWeight(gPosition,vec4(n,0.0));
 	gl_FragColor = vec4(color,1.0);
 }
 

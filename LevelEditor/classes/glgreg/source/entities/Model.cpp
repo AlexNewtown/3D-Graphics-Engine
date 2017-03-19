@@ -24,13 +24,13 @@ Model_obj::Model_obj(const char* filePath, Shader* s, bool anchored): Entity(),R
 	diffuseProbability = 1.0;
 	specularProbability = 0.0;
 
-	absorption[0] = 0.15;
-	absorption[1] = 0.35;
-	absorption[2] = 0.6;
+	absorption[0] = 0.032;
+	absorption[1] = 0.17;
+	absorption[2] = 0.48;
 
-	reducedScattering[0] = 3;
-	reducedScattering[1] = 4.5;
-	reducedScattering[2] = 6;
+	reducedScattering[0] = 0.74;
+	reducedScattering[1] = 0.88;
+	reducedScattering[2] = 1.01;
 
 	std::string stringName = std::string(filePath);
 	size_t endSub = stringName.find_last_of(".");
@@ -821,15 +821,38 @@ void Model_obj::addTextureCoord()
 	for(int i = 0; i < __objLoader->faceList().size(); i++)
 	{
 		currentFace = (Face*)__objLoader->faceList()[i];
-		
-		tcData[vertexIndex] = currentFace->texCoord[0]->pos[0];
-		tcData[vertexIndex+1] = currentFace->texCoord[0]->pos[1];
-		
-		tcData[vertexIndex+2] = currentFace->texCoord[1]->pos[0];
-		tcData[vertexIndex+3] = currentFace->texCoord[1]->pos[1];
+		if (currentFace->texCoord[0] != NULL)
+		{
+			tcData[vertexIndex] = currentFace->texCoord[0]->pos[0];
+			tcData[vertexIndex + 1] = currentFace->texCoord[0]->pos[1];
+		}
+		else
+		{
+			tcData[vertexIndex] = 0.0;
+			tcData[vertexIndex + 1] = 0.0;
+		}
 
-		tcData[vertexIndex+4] = currentFace->texCoord[2]->pos[0];
-		tcData[vertexIndex+5] = currentFace->texCoord[2]->pos[1];
+		if (currentFace->texCoord[1] != NULL)
+		{
+			tcData[vertexIndex + 2] = currentFace->texCoord[1]->pos[0];
+			tcData[vertexIndex + 3] = currentFace->texCoord[1]->pos[1];
+		}
+		else
+		{
+			tcData[vertexIndex + 2] = 0.0;
+			tcData[vertexIndex + 3] = 0.0;
+		}
+
+		if (currentFace->texCoord[2] != NULL)
+		{
+			tcData[vertexIndex + 4] = currentFace->texCoord[2]->pos[0];
+			tcData[vertexIndex + 5] = currentFace->texCoord[2]->pos[1];
+		}
+		else
+		{
+			tcData[vertexIndex + 4] = 0.0;
+			tcData[vertexIndex + 5] = 0.0;
+		}
 
 		vertexIndex = vertexIndex + 6;
 	}
@@ -882,11 +905,11 @@ void Model_obj::addMaterialTextureArray()
 {
 	int numMaterials = __objLoader->materials().size();
 
-	std::vector<Texture_obj<GLubyte>*> texArray;
+	std::vector<Texture_obj<GLfloat>*> texArray;
 	for(int i = 0 ; i< numMaterials; i++)
 	{
-		if ((__objLoader->materials()[i])->texture != NULL)
-			texArray.push_back((__objLoader->materials()[i])->texture);
+		//if ((__objLoader->materials()[i])->texture != NULL)
+		texArray.push_back((__objLoader->materials()[i])->texture);
 	}
 	
 	if (texArray.size() > 0)
@@ -921,27 +944,28 @@ void Model_obj::addMaterialBumpMapTextureArray()
 		return;
 	}
 
-	std::vector<Texture_obj<GLubyte>*> texArray;
+	std::vector<Texture_obj<GLfloat>*> texArray;
 	for (int i = 0; i < numMaterials; i++)
 	{
-		if ((__objLoader->materials()[i])->bumpMapTexture != NULL)
-			texArray.push_back((__objLoader->materials()[i])->bumpMapTexture);
+		//if ((__objLoader->materials()[i])->bumpMapTexture != NULL)
+		texArray.push_back((__objLoader->materials()[i])->bumpMapTexture);
 	}
 	__shader->addTextureArray(texArray, texArray.size(), "bumpMapTexture", -1);
 	texIndex++;
-	if (__objLoader->materials()[0]->texture != NULL)
-	{
-		float bumpMapEpsX = 1.0 / (__objLoader->materials()[0]->texture->width);
-		float bumpMapEpsY = 1.0 / (__objLoader->materials()[0]->texture->height);
-		__shader->addUniform(&bumpMapEpsX, "bumpMapEpsX", UNIFORM_FLOAT_1, false);
-		__shader->addUniform(&bumpMapEpsY, "bumpMapEpsY", UNIFORM_FLOAT_1, false);
-	}
+
+	float bumpMapEpsX = 1.0f / 512.0f;
+	float bumpMapEpsY = 1.0f / 512.0f;
+	__shader->addUniform(&bumpMapEpsX, "bumpMapEpsX", UNIFORM_FLOAT_1, false);
+	__shader->addUniform(&bumpMapEpsY, "bumpMapEpsY", UNIFORM_FLOAT_1, false);
+	
 }
 
 void Model_obj::cloneMaterialTexInt(Material_tex_int *mStd, Material* m)
 {
 	mStd->materialIndex = m->materialIndex;
 	mStd->illum = m->illum;
+	mStd->isTexBound = m->isTexBound;
+	mStd->isBumpTexBound = m->isBumpTexBound;
 }
 
 void Model_obj::cloneMaterialTexFloat(Material_tex_float *mStd, Material* m)

@@ -36,7 +36,7 @@ void main()
 
 	for(int i=0; i< numLightMaps; i++)
 	{
-		vec4 lightCameraTransform = matrixMult(lightCameraMatrix[i],gLocalPosition);
+		vec4 lightCameraTransform = matrixMult(lightCameraMatrix[i],gLocalPosition);	
 		vec3 lightDirection = -normalize(vec3(lightCameraTransform));
 		vec3 viewingDirection = -normalize(vec3(gPosition));
 		

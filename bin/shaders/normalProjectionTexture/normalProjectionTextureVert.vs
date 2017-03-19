@@ -18,7 +18,7 @@ uniform float windowAspectRatio;
 
 void main()
 {
-	vNormal = matrixMult(normalMatrix, normal);
+	vNormal = matrixMult(entityNormalMatrix, normal);
 	vNormal = vec4(normalize(vec3(vNormal)),1.0);
 
  	vTextureCoord = textureCoord;
@@ -26,10 +26,10 @@ void main()
 
 	vec2 tStretched = 2.0*textureCoord*vec2(1.0,1.0) - vec2(1.0,1.0);
 
-	vBasisX = matrixMult(normalMatrix, basisX);
+	vBasisX = matrixMult(entityNormalMatrix, basisX);
 	vBasisX = vec4(normalize(vec3(vBasisX)),1.0);
 
-	vBasisZ = matrixMult(normalMatrix, basisZ);
+	vBasisZ = matrixMult(entityNormalMatrix, basisZ);
 	vBasisZ = vec4(normalize(vec3(vBasisZ)),1.0);
 
 	gl_Position = vec4(tStretched,-1.0,1.0);

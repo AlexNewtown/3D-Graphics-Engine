@@ -27,22 +27,17 @@ uniform int transmittance;
 
 layout(location = 0) out vec4 transmittedRadiance;
 layout(location = 1) out vec4 reflectedRadiance;
+layout(location = 2) out vec4 diffuseRadiance;
 
 void main()
 {
 	vec3 color = pixelColor(gTextureCoord, gMaterialIndex);
-	
-
-	//color = color*photonIrradianceReflected(vec3(gPosition),computeBumpMapNormal());
-
-	/*color = color*photonIrradianceTransmitted(vec3(gPosition),computeBumpMapNormal());*/
-	
-	//color = color*photonIrradiance(vec3(gPosition),computeBumpMapNormal());
 
 	knnSearch(vec3(gPosition));
 	vec3 n = computeBumpMapNormal();
 	transmittedRadiance = vec4(color*photonIrradianceTransmitted(vec3(gPosition),n,false),1.0);
 	reflectedRadiance = vec4(color*photonIrradianceReflected(vec3(gPosition),n,false),1.0);
+	diffuseRadiance = vec4(color*photonIrradiance(vec3(gPosition), n),1.0);
 }
 
 vec3 computeBumpMapNormal()

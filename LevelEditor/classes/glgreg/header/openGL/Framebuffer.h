@@ -56,7 +56,7 @@ public:
 	@param int w
 	@param int h
 	*/
-	GLuint createRGBATexture(int w, int h, int colorFormat);
+	virtual GLuint createRGBATexture(int w, int h, int colorFormat);
 
 	/*
 	GLuint createLuminanceTexture
@@ -64,7 +64,7 @@ public:
 	@param int w
 	@param int h
 	*/
-	GLuint createLuminanceTexture(int w, int h);
+	virtual GLuint createLuminanceTexture(int w, int h);
 
 	/*
 	GLuint createDepthTexture
@@ -72,8 +72,8 @@ public:
 	@param int w
 	@param int h
 	*/
-	GLuint createDepthTexture(int w, int h);
-private:
+	virtual GLuint createDepthTexture(int w, int h);
+protected:
 
 	/*
 	GLuint createFBO
@@ -82,7 +82,21 @@ private:
 	creates a framebuffer object, returned as an unsigned int.
 	*/
 	GLuint createFBO(int w, int h);
-	void addTextures();
+	virtual void addTextures();
 };
+
+class FramebufferMS : public Framebuffer
+{
+public:
+	FramebufferMS(int w, int h, int colorFormat);
+	virtual ~FramebufferMS();
+
+	virtual GLuint createRGBATexture(int w, int h, int colorFormat);
+	virtual GLuint createLuminanceTexture(int w, int h);
+	virtual GLuint createDepthTexture(int w, int h);
+
+	virtual void addTextures();
+};
+
 
 #endif

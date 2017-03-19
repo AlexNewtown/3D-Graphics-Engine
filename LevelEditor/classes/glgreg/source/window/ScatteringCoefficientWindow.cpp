@@ -1,3 +1,4 @@
+#ifdef _EDITOR
 #include "../../header/window/ScatteringCoefficientWindow.h"
 
 BasicWindow absorptionWindow;
@@ -133,8 +134,8 @@ void populateAbsorptionEntryFields(Entity* e)
 	SendMessage(absorptionEditB, EM_SETSEL, 0, SendMessage(absorptionEditB, EM_LINELENGTH, 0, 0));
 	SendMessage(absorptionEditB, WM_CLEAR, 0, 0);
 
-	TCHAR* p = new TCHAR[32];
-	char* fs = new char[32];
+	TCHAR p[64];
+	char fs[64];
 	int i = 0;
 
 	sprintf(fs, "%0.3f", ((Model_obj*)e)->absorption[0]);
@@ -159,7 +160,7 @@ void populateAbsorptionEntryFields(Entity* e)
 
 	sprintf(fs, "%0.3f", ((Model_obj*)e)->absorption[2]);
 	i = 0;
-	while (fs[i] != '\0')
+	while (fs[i] != '\0' && i < 63)
 	{
 		p[i] = fs[i];
 		i++;
@@ -167,8 +168,6 @@ void populateAbsorptionEntryFields(Entity* e)
 	p[i] = '\0';
 	SendMessage(absorptionEditB, EM_REPLACESEL, 0, (LPARAM)p);
 
-	delete p;
-	delete fs;
 }
 
 void absorptionWindowUpdate(Entity* e, Scene* s)
@@ -379,3 +378,4 @@ void reducedScatteringWindowReset(Entity* e, Scene* s)
 
 	populateReducedScatteringEntryFields(e);
 }
+#endif

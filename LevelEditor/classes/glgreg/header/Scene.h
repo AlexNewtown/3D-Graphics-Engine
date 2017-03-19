@@ -224,7 +224,7 @@ public:
 	void computeSubsurfaceScatteringTextures();
 	void addShadowMap();
 	void addReflectiveShadowMap();
-	std::vector<Texture_obj<GLubyte>*> computePhotonMapDiffuseTexture();
+	std::vector<Texture_obj<GLfloat>*> computePhotonMapDiffuseTexture();
 	void addEnvironmentMap(std::vector<Texture_obj<GLfloat>*>& environmentMap);
 	std::vector<Texture_obj<GLfloat>*> computeRadianceTexture();
 	void addIRShadowMap();

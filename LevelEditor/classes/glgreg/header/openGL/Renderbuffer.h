@@ -23,6 +23,7 @@ class Renderbuffer
 public:
 	/*constructor*/
 	Renderbuffer(int w, int h, int colorFormat);
+	Renderbuffer();
 	/*deconstructor*/
 	virtual ~Renderbuffer();
 	
@@ -42,4 +43,11 @@ public:
 	GLuint width, height;
 
 	Framebuffer* framebuffer;
+};
+
+class RenderbufferMS : public Renderbuffer
+{
+public:
+	RenderbufferMS(int w, int h, int colorFormat);
+	virtual ~RenderbufferMS();
 };

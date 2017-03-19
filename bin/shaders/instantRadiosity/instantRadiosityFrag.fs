@@ -24,7 +24,11 @@ vec3 computeBumpMapNormal();
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out float fragDepth;
 
-uniform vec4 irLightData[30];
+const int MAX_NUM_IR_LIGHTS = 100;
+uniform int numIrLightMaps;
+uniform vec4 irLightPosition[MAX_NUM_IR_LIGHTS];
+uniform mat4 irCameraMatrix[MAX_NUM_IR_LIGHTS];
+uniform sampler2DArray irDepthMap;
 //x,y,z,power
 
 void main()
@@ -32,34 +36,41 @@ void main()
 	vec3 color;
 	vec3 s = vec3(0.0,0.0,0.0);
 	color = pixelColor(gTextureCoord, gMaterialIndex);
-
 	vec3 ambient = 0.0*vec3(1.0,1.0,1.0);
-	float direct = 1.0/float(numLightMaps);
-
-	float ss = 0.0;
-	float q = 0.0;
+	float direct = 3.0/float(numIrLightMaps + numLightMaps);
 
 	vec3 n = computeBumpMapNormal();
+	vec3 entPos = vec3(matrixMult(entityMatrix, vec4(vec3(gLocalPosition),1.0)));
+	vec3 viewingDirection = -normalize(vec3(gPosition));
+
+	for(int i=0; i< numIrLightMaps; i++)
+	{
+		vec3 lightDirection = normalize(vec3(irLightPosition[i]) - entPos);
+		
+		float dp = dot(lightDirection,vec3(entityNormal));
+		float f = irLightPosition[i].w*dp;
+		float sh = shadowed(gLocalPosition,irCameraMatrix[i], irDepthMap, i);
+
+		sh = min(sh,1.0);
+		s = s + f*direct*sh*vec3(1.0,1.0,1.0);
+	}
 
 	for(int i=0; i< numLightMaps; i++)
 	{
-		vec4 lightCameraTransform = matrixMult(lightCameraMatrix[i],gLocalPosition);
-		//vec3 lightDirection = -normalize(vec3(lightCameraTransform));
-		vec3 viewingDirection = -normalize(vec3(gPosition));
+		vec3 lightDirection = normalize(vec3(lightPosition[i]) - entPos);
 
-		vec3 entPos = vec3(matrixMult(entityMatrix, vec4(vec3(gLocalPosition),1.0)));
-		vec3 lightDirection = normalize(vec3(irLightData[i]) - entPos);
-	
-
-		//float f = sampleBRDF(lightDirection, viewingDirection, n, gMaterialIndex, gTextureCoord);
-		float f = irLightData[i].w*dot(lightDirection,vec3(entityNormal));
-
-		s = s + f*direct*shadowed(gLocalPosition);
+		float sh = shadowed(gLocalPosition,i);
+		float dp = dot(lightDirection,vec3(entityNormal));
+		float f = dp;
+		
+		sh = min(sh,1.0);
+		s = s + f*sh*vec3(1.0,1.0,1.0);
 	}
+
 	s = min(s + ambient,vec3(1.0,1.0,1.0));
 	s = max(vec3(0.0,0.0,0.0),s);
 	color = color*s;
-
+	color = color*dot(viewingDirection,n);
 	outColor = vec4(color,1.0);
 	fragDepth = gl_FragDepth;
 }

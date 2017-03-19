@@ -53,13 +53,15 @@ struct Material
 	GLfloat d;
 	GLfloat sharpness;
 	int illum;
+	int isTexBound;
+	int isBumpTexBound;
 	GLfloat bumpMapMult;
 
 	std::string kdTextureName;
-	Texture_obj<GLubyte>* texture;
+	Texture_obj<GLfloat>* texture;
 
 	std::string bumpMapName;
-	Texture_obj<GLubyte>* bumpMapTexture;
+	Texture_obj<GLfloat>* bumpMapTexture;
 };
 
 struct Material_std
@@ -152,7 +154,7 @@ private:
 	void addBumpMapMultiplier(std::string &line);
 	void smoothNormals();
 
-	Texture_obj<GLubyte>* loadTexture(std::string textureName);
+	Texture_obj<GLfloat>* loadTexture(std::string textureName);
 	void resizeTexturesToMatch();
 };
 

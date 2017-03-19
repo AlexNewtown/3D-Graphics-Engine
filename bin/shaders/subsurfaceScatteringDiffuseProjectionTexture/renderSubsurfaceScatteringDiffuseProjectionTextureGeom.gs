@@ -19,8 +19,8 @@ out vec4 gNormal;
 flat out int gMaterialIndex;
 out vec2 gTextureCoord;
 
-flat out vec3 basisX;
-flat out vec3 basisZ;
+out vec3 basisX;
+out vec3 basisZ;
 
 flat out vec2 texVert1;
 flat out vec2 texVert2;

@@ -17,12 +17,7 @@ Scene::Scene(Camera* camera)
 {
 	__camera = camera;
 	shadingType = SHADER_TYPE_RASTERIZE; 
-	renderbuffer = new Renderbuffer(getControllerInstance()->screenWidth(), getControllerInstance()->screenHeight(),GL_UNSIGNED_BYTE);
-
-#if POST_PROCESSING
-	this->filterBlurShader = new FilterBlurShader(SCREEN_WIDTH,SCREEN_HEIGHT,"../bin/assets/textures/lpf.png");
-	this->filterBlurShader->addTexture(renderbuffer->framebuffer->colorTex, "inputTex", -1);
-#endif
+	renderbuffer = new Renderbuffer(getControllerInstance()->screenWidth(), getControllerInstance()->screenHeight(),GL_FLOAT);
 }
 
 
@@ -190,12 +185,6 @@ render, invokes the render routines for each entity in the scene.
 */
 void Scene::render()
 {
-#if POST_PROCESSING
-	this->renderbuffer->bindFramebuffer();
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//glDrawBuffer(GL_FRONT);
-#endif
-
 	const GLenum buffers[] = { GL_BACK, };
 	glDrawBuffers(1, buffers);
 
@@ -224,14 +213,6 @@ void Scene::render()
 	}
 #endif
 
-
-#if POST_PROCESSING
-	glFinish();
-	renderbuffer->unbindFramebuffer();
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
-	filterBlurShader->render();
-	glFinish();
-#endif
 }
 
 int Scene::numEntities()
@@ -696,7 +677,7 @@ std::vector<MaterialFace*> Scene::computeEntityMaterialFaceList()
 				localPos[1] = currentFace->normal[k]->pos[1];
 				localPos[2] = currentFace->normal[k]->pos[2];
 				localPos[3] = 0.0;
-				currentEntity->nm()->multVec(localPos, result);
+				currentEntity->localNm()->multVec(localPos, result);
 				normalize(result);
 				f->normal[k] = new Vertex();
 				f->normal[k]->pos[0] = result[0];
@@ -1030,9 +1011,9 @@ void Scene::randomizePoint(float* v1, float* v2, float* v3, float* result)
 	result[2] = r[0] * v1[2] + r[1] * v2[2] + r[2] * v3[2];
 }
 
-#define NUM_PHOTONS 500000
+#define NUM_PHOTONS 100000
 #define MAX_PHOTON_BOUNCES 6
-#define PHOTON_INTENSITY_SCALE 3*NUM_PHOTONS
+#define PHOTON_INTENSITY_SCALE 1.0*NUM_PHOTONS
 /*
 @function computePhotonMap
 
@@ -1063,7 +1044,7 @@ std::vector<PhotonMap*> Scene::computePhotonMap(bool direct, int numPhotons)
 			r.pos.y = __lightEntityList[i]->y();
 			r.pos.z = __lightEntityList[i]->z();
 
-			float randomDir[3];
+			float randomDir[4];
 			float basisX[3];
 			float basisZ[3];
 			float basisY[3];
@@ -1073,14 +1054,23 @@ std::vector<PhotonMap*> Scene::computePhotonMap(bool direct, int numPhotons)
 			normalize(basisY);
 			getBasis(basisY, basisX, basisZ);
 			float planeW = 1.0;
+			normalize(basisX);
+			normalize(basisZ);
 			randomDir[0] = 1.41*((2.0*planeW*(float)rand() / RAND_MAX) - planeW);
 			randomDir[1] = 1.41*((2.0*planeW*(float)rand() / RAND_MAX) - planeW);
 			randomDir[2] = -1.0;
+			randomDir[3] = 0.0;
 			normalize(randomDir);
 
-			randomDir[0] = randomDir[0] * (basisX[0] + basisY[0] + basisZ[0]);
-			randomDir[1] = randomDir[1] * (basisX[1] + basisY[1] + basisZ[1]);
-			randomDir[2] = randomDir[2] * (basisX[2] + basisY[2] + basisZ[2]);
+			float result[4];
+			//le->mvm()->multVec(randomDir, result);
+			le->computeLocalMatrix();
+			le->computeNormalMatrix();
+			le->localNm()->multVec(randomDir, result);
+
+			randomDir[0] = result[0];
+			randomDir[1] = result[1];
+			randomDir[2] = result[2];
 
 			for (int k = 0; k <= MAX_PHOTON_BOUNCES; k++)
 			{
@@ -1135,12 +1125,13 @@ std::vector<PhotonMap*> Scene::computePhotonMap(bool direct, int numPhotons)
 							photonMap->index = pm.size();
 							pm.push_back(photonMap);
 						}
-						photonPower = photonPower*((MaterialFace*)hitFace)->diffuseP;
+						//photonPower = photonPower*((MaterialFace*)hitFace)->diffuseP;
 						r.pos.x = rh.min.x + n1[0] * 0.001;
 						r.pos.y = rh.min.y + n1[1] * 0.001;
 						r.pos.z = rh.min.z + n1[2] * 0.001;
 
 						randomizeDirection(randomDir, n1);
+						photonPower = photonPower*dotProduct(randomDir, n1);
 					}
 
 					else if (randMaterial < ((MaterialFace*)hitFace)->diffuseP + ((MaterialFace*)hitFace)->specularP)
@@ -1174,17 +1165,18 @@ std::vector<PhotonMap*> Scene::computePhotonMap(bool direct, int numPhotons)
 						r.pos.z = rh.min.z + n1[2] * 0.001;
 						float rOut[3];
 						float rIn[] = { -r.dir.x, -r.dir.y, -r.dir.z };
-						rOut[0] = 2 * n1[0] * dotProduct(n1, rIn) - rIn[0];
-						rOut[1] = 2 * n1[1] * dotProduct(n1, rIn) - rIn[1];
-						rOut[2] = 2 * n1[2] * dotProduct(n1, rIn) - rIn[2];
+						randomDir[0] = 2 * n1[0] * dotProduct(n1, rIn) - rIn[0];
+						randomDir[1] = 2 * n1[1] * dotProduct(n1, rIn) - rIn[1];
+						randomDir[2] = 2 * n1[2] * dotProduct(n1, rIn) - rIn[2];
 						normalize(rOut);
-						r.dir.x = rOut[0];
-						r.dir.y = rOut[1];
-						r.dir.z = rOut[2];
+						r.dir.x = randomDir[0];
+						r.dir.y = randomDir[1];
+						r.dir.z = randomDir[2];
 
 
 
-						photonPower = photonPower*((MaterialFace*)hitFace)->specularP;
+						//photonPower = photonPower*((MaterialFace*)hitFace)->specularP;
+						photonPower = photonPower*dotProduct(randomDir, n1);
 					}
 
 					/*ELSE ABSORPTION*/
@@ -1441,7 +1433,9 @@ void Scene::addPhotonMap(bool direct)
 
 void Scene::addIRShadowMap()
 {
-	std::vector<PhotonMap*> irMap = computePhotonMap(true, 5);
+	addShadowMap();
+
+	std::vector<PhotonMap*> irMap = computePhotonMap(true, 40);
 
 	/*create the light camera with the matrix*/
 	Camera* lightCam = new Camera(90, 1, NEAR_PLANE, FAR_PLANE, new Matrix4x4());
@@ -1453,6 +1447,7 @@ void Scene::addIRShadowMap()
 	/*copy the entites,*/
 	std::vector<Model_obj*> entityCopyList;
 	int nLight = irMap.size();
+	int nLightEntities = this->numLightEntities();
 	std::vector<Texture_obj<float>*> depthTex;
 
 	Model_obj* entityLookup;
@@ -1470,7 +1465,7 @@ void Scene::addIRShadowMap()
 
 		entityCopyList.push_back(e);
 
-		entityLookup->shader()->addUniform((void*)&nLight, "numLightMaps", UNIFORM_INT_1, false);
+		entityLookup->shader()->addUniform((void*)&nLight, "numIrLightMaps", UNIFORM_INT_1, false);
 
 		int fp = getControllerInstance()->camera()->farPlane();
 		int np = getControllerInstance()->camera()->nearPlane();
@@ -1496,6 +1491,8 @@ void Scene::addIRShadowMap()
 		float ay = asin(normY);
 
 		lightCam->mvm()->loadIdentity();
+		lightCam->projectionMatrix()->set(0, 0, 0.25);
+		lightCam->projectionMatrix()->set(1, 1, 0.25);
 		lightCam->mvm()->rotate(az, 0, 1.0, 0);
 		lightCam->mvm()->rotate(ay, 1.0, 0.0, 0);
 		lightCam->mvm()->translate(-x, -y, -z);
@@ -1512,11 +1509,11 @@ void Scene::addIRShadowMap()
 		{
 			entityLookup = (Model_obj*)__entityList[j];
 
-			std::string matrixUniformString("lightCameraMatrix[");
+			std::string matrixUniformString("irCameraMatrix[");
 			matrixUniformString += std::to_string(i);
 			matrixUniformString += std::string("]");
 
-			std::string lightPositionString("irLightData[");
+			std::string lightPositionString("irLightPosition[");
 			lightPositionString += std::to_string(i);
 			lightPositionString += std::string("]");
 
@@ -1566,6 +1563,7 @@ void Scene::addIRShadowMap()
 
 		cv::Mat depthMatResize;
 		cv::resize(depthMat, depthMatResize, cv::Size(resizeHeight, resizeWidth), 0.0, 0.0, CV_INTER_LINEAR);
+		cv::GaussianBlur(depthMatResize, depthMatResize, cv::Size(15, 15), 1.0, 1.0, cv::BORDER_REPLICATE);
 		
 		index = 0;
 		float* depthResize = new float[resizeWidth*resizeHeight];
@@ -1591,7 +1589,7 @@ void Scene::addIRShadowMap()
 	/*ADD TEXTURES*/
 	for (int i = 0; i < __entityList.size(); i++)
 	{
-		((Model_obj*)__entityList[i])->shader()->addTextureArrayDepth(depthTex, depthTex.size(), "depthMap", -1);
+		((Model_obj*)__entityList[i])->shader()->addTextureArrayDepth(depthTex, depthTex.size(), "irDepthMap", -1);
 	}
 
 
@@ -1604,11 +1602,12 @@ void Scene::addIRShadowMap()
 		entityCopyList.pop_back();
 	}
 
-	for (int i = 0; i < nLight; i++)
+	for (int i = 0; i < irMap.size(); i++)
 	{
 		delete lightCamMatrix[i];
 	}
 
+	irMap.clear();
 }
 
 /*
@@ -1673,6 +1672,7 @@ void Scene::addShadowMap()
 		lightPos[0] = fl->position()[0];
 		lightPos[1] = fl->position()[1];
 		lightPos[2] = fl->position()[2];
+		lightPos[3] = 10.0;
 		//lightCam->projectionMatrix()->set(0, 0, 1.0/fl->projectionWidth);
 		//lightCam->projectionMatrix()->set(1, 1, 1.0/fl->projectionHeight);
 
@@ -1829,9 +1829,6 @@ void Scene::addReflectiveShadowMap()
 	}
 
 	glDisable(GL_BLEND);
-	//const GLenum buffers[] = { GL_NONE, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-	//glDrawBuffers(1, buffers);
-
 	float lightPos[4];
 	Matrix4x4** lightCamMatrix = new Matrix4x4*[nLight];
 	for (int lightIndex = 0; lightIndex < nLight; lightIndex++)
@@ -1840,10 +1837,10 @@ void Scene::addReflectiveShadowMap()
 		FrustumLight* fl = (FrustumLight*)getLightEntity(lightIndex);
 
 		lightCam->mvm()->loadIdentity();
-		lightCam->mvm()->translate(-fl->position()[0], -fl->position()[1], -fl->position()[2]);
 		lightCam->mvm()->rotate(-fl->rotX(), 1.0, 0.0, 0.0);
 		lightCam->mvm()->rotate(-fl->rotY(), 0.0, 1.0, 0.0);
 		lightCam->mvm()->rotate(-fl->rotZ(), 0.0, 0.0, 1.0);
+		lightCam->mvm()->translate(-fl->position()[0], -fl->position()[1], -fl->position()[2]);
 
 		lightCamMatrix[lightIndex] = new Matrix4x4();
 		lightPos[0] = fl->position()[0];
@@ -1860,7 +1857,12 @@ void Scene::addReflectiveShadowMap()
 			e->update(lightCam);
 			lightCam->projectionMatrix()->mult(e->mvm(), lightCamMatrix[lightIndex]);
 			e->shader()->addUniform(lightCam->projectionMatrix()->mat, "projectionMatrix", UNIFORM_MAT_4, false);
-			e->shader()->addUniform(lightPos, "lightPosition[0]", UNIFORM_FLOAT_4, false);
+			
+			std::string lightPositionString("lightPosition[");
+			lightPositionString += std::to_string(lightIndex);
+			lightPositionString += std::string("]");
+
+			e->shader()->addUniform(lightPos, (GLchar*)lightPositionString.c_str(), UNIFORM_FLOAT_4, false);
 		}
 
 		glDisable(GL_BLEND);
@@ -1931,6 +1933,11 @@ void Scene::addReflectiveShadowMap()
 		((Model_obj*)this->getEntity(i))->shader()->addTextureArray(imVecReflectedRadiance, imVecReflectedRadiance.size(), "reflectedRadianceTexture", -1);
 	}
 
+	for (int i = 0; i < nLight; i++)
+	{
+		delete lightCamMatrix[i];
+	}
+
 	delete sc;
 	
 }
@@ -1975,7 +1982,7 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 {	
 	Scene* sceneCopySSSD = this->copyScene<SSSDiffuseProjectionTextureShader>();
 
-	Renderbuffer *rb = new Renderbuffer(SCREEN_WIDTH, SCREEN_HEIGHT, GL_FLOAT);
+	//Renderbuffer *rb = new Renderbuffer(SCREEN_WIDTH, SCREEN_HEIGHT, GL_FLOAT);
 	
 	int tWidth = SCREEN_WIDTH;
 	int tHeight = SCREEN_HEIGHT;
@@ -1996,22 +2003,24 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		Scene* sceneCopyRadianceTransmitted = this->copyScene<PhotonMapTransmittanceProjectionTextureShader>();
 		
 		//render the transmitted radiance of the model to the texture
-		rb->bindFramebuffer();
+		//rb->bindFramebuffer();
+		sceneCopyRadianceTransmitted->renderbuffer->bindFramebuffer();
+
 		e = (Model_obj*)sceneCopyRadianceTransmitted->getEntity(i);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 		glDrawBuffers(2, drawBuffers);
 		e->render();
 		glFinish();
-		rb->unbindFramebuffer();
-		glDrawBuffer(GL_BACK);
+		//rb->unbindFramebuffer();
+		sceneCopyRadianceTransmitted->renderbuffer->unbindFramebuffer();
 
-		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		//glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		glBindTexture(GL_TEXTURE_2D, sceneCopyRadianceTransmitted->renderbuffer->framebuffer->colorTex);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tWidth);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tHeight);
 		returnTex = new GLfloat[tWidth*tHeight * 4];
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, returnTex);
-		glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_TRUE);
 
 		imVec[0]->buf = returnTex;
 		imVec[0]->width = tWidth;
@@ -2039,12 +2048,12 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		bufout.clear();
 		delete returnTex8U;
 
-		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex1);
+		//glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex1);
+		glBindTexture(GL_TEXTURE_2D, sceneCopyRadianceTransmitted->renderbuffer->framebuffer->colorTex1);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tWidth);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tHeight);
 		returnTex = new GLfloat[tWidth*tHeight * 4];
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, returnTex);
-		glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_TRUE);
 
 		imVec[0]->buf = returnTex;
 		imVec[0]->width = tWidth;
@@ -2056,19 +2065,22 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 
 		Scene* sceneCopyNormalDepthShader = this->copyScene<NormalDepthProjectionTextureShader>();
 		//render the NORMAL DEPTH texture
-		rb->bindFramebuffer();
+		//rb->bindFramebuffer();
+		sceneCopyNormalDepthShader->renderbuffer->bindFramebuffer();
+		glDrawBuffers(1, drawBuffers);
 		e = (Model_obj*)sceneCopyNormalDepthShader->getEntity(i);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		e->render();
 		glFinish();
-		rb->unbindFramebuffer();
+		//rb->unbindFramebuffer();
+		sceneCopyNormalDepthShader->renderbuffer->unbindFramebuffer();
 
-		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		//glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		glBindTexture(GL_TEXTURE_2D, sceneCopyNormalDepthShader->renderbuffer->framebuffer->colorTex);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tWidth);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tHeight);
 		returnTex = new GLfloat[tWidth*tHeight * 4];
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, returnTex);
-		glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_TRUE);
 
 		imVec[0]->buf = returnTex;
 		imVec[0]->width = tWidth;
@@ -2099,19 +2111,23 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 
 		Scene* sceneCopyPositionShader = this->copyScene<PositionProjectionTextureShader>();
 		//render the NORMAL DEPTH texture
-		rb->bindFramebuffer();
+
+		//rb->bindFramebuffer();
+		sceneCopyPositionShader->renderbuffer->bindFramebuffer();
+		glDrawBuffers(1, drawBuffers);
 		e = (Model_obj*)sceneCopyPositionShader->getEntity(i);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		e->render();
 		glFinish();
-		rb->unbindFramebuffer();
+		//rb->unbindFramebuffer();
+		sceneCopyPositionShader->renderbuffer->unbindFramebuffer();
 
-		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		//glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		glBindTexture(GL_TEXTURE_2D, sceneCopyPositionShader->renderbuffer->framebuffer->colorTex);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tWidth);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tHeight);
 		returnTex = new GLfloat[tWidth*tHeight * 4];
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, returnTex);
-		glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_TRUE);
 
 		imVec[0]->buf = returnTex;
 		imVec[0]->width = tWidth;
@@ -2140,19 +2156,21 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		delete sceneCopyPositionShader;
 		delete returnTex8U;
 
-		rb->bindFramebuffer();
+		//rb->bindFramebuffer();
+		sceneCopySSSD->renderbuffer->bindFramebuffer();
 		Model_obj* e = (Model_obj*)sceneCopySSSD->getEntity(i);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		e->render();
 		glFinish();
-		rb->unbindFramebuffer();
+		//rb->unbindFramebuffer();
+		sceneCopySSSD->renderbuffer->unbindFramebuffer();
 
-		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		//glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		glBindTexture(GL_TEXTURE_2D, sceneCopySSSD->renderbuffer->framebuffer->colorTex);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tWidth);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tHeight);
 		returnTex = new GLfloat[tWidth*tHeight * 4];
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, returnTex);
-		glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_TRUE);
 
 
 		tIndex = 0;
@@ -2198,7 +2216,7 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 	//delete kernelTex;
 	//delete sceneCopy;
 	//delete rbTexFilter;
-	delete rb;
+	//delete rb;
 	//delete filter;
 	//delete sceneCam;
 	/*
@@ -2223,7 +2241,7 @@ void Scene::computeSubsurfaceScatteringTextures()
 	computeRadianceTexture();	
 }
 
-std::vector<Texture_obj<GLubyte>*> Scene::computePhotonMapDiffuseTexture()
+std::vector<Texture_obj<GLfloat>*> Scene::computePhotonMapDiffuseTexture()
 {
 	Camera* sceneCam = new Camera(90, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, NEAR_PLANE, FAR_PLANE);
 	Scene* sceneCopy = new Scene(sceneCam);
@@ -2255,25 +2273,28 @@ std::vector<Texture_obj<GLubyte>*> Scene::computePhotonMapDiffuseTexture()
 
 	Renderbuffer *rb = new Renderbuffer(SCREEN_WIDTH, SCREEN_HEIGHT,GL_UNSIGNED_BYTE);
 	int tWidth, tHeight;
-	std::vector<Texture_obj<GLubyte>*> textures;
+	std::vector<Texture_obj<GLfloat>*> textures;
 
+	GLenum renderBuffs[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	
 	for (int i = 0; i < __entityList.size(); i++)
 	{
 		rb->bindFramebuffer();
 		Model_obj* e = (Model_obj*)sceneCopy->getEntity(i);
+		glDrawBuffers(3, renderBuffs);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		e->render();
 		glFinish();
 		rb->unbindFramebuffer();
 
 
-		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex);
+		glBindTexture(GL_TEXTURE_2D, rb->framebuffer->colorTex2);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tWidth);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tHeight);
-		GLubyte* returnTex = new GLubyte[tWidth*tWidth * 4];
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, returnTex);
+		GLfloat* returnTex = new GLfloat[tWidth*tWidth * 4];
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, returnTex);
 
-		Texture_obj<GLubyte>* texObject = new Texture_obj<GLubyte>();
+		Texture_obj<GLfloat>* texObject = new Texture_obj<GLfloat>();
 		texObject->buf = returnTex;
 		texObject->width = tWidth;
 		texObject->height = tHeight;
@@ -2853,7 +2874,7 @@ bool Scene::exportScene(const char* filePath)
 	}
 	else if (shadingType == SHADER_TYPE_PHOTON_MAP )
 	{
-		std::vector<Texture_obj<GLubyte>*> tex = computePhotonMapDiffuseTexture();
+		std::vector<Texture_obj<GLfloat>*> tex = computePhotonMapDiffuseTexture();
 		
 		int numTextures = tex.size();
 		file.write((char*)&numTextures, 4);
@@ -2876,8 +2897,8 @@ bool Scene::exportScene(const char* filePath)
 				{
 					for (int c = 0; c < cSize; c++)
 					{
-						GLubyte d = tex[i]->buf[tIndex];
-						file.write((char*)&d, 1);
+						GLfloat d = tex[i]->buf[tIndex];
+						file.write((char*)&d, 4);
 						tIndex++;
 					}
 				}
@@ -3155,7 +3176,7 @@ Scene* importScene(const char* filePath, Camera* cam)
 	{
 		//scene->addPhotonMap();
 
-		std::vector<Texture_obj<GLubyte>*> tex;
+		std::vector<Texture_obj<GLfloat>*> tex;
 
 		int numTextures;
 		file.read((char*)&numTextures, 4);
@@ -3171,11 +3192,11 @@ Scene* importScene(const char* filePath, Camera* cam)
 			file.read((char*)&h, 4);
 			file.read((char*)&cSize, 4);
 
-			Texture_obj<GLubyte>* t = new Texture_obj<GLubyte>();
+			Texture_obj<GLfloat>* t = new Texture_obj<GLfloat>();
 			t->width = w;
 			t->height = h;
 			t->channelSize = cSize;
-			t->buf = new GLubyte[w*h*cSize];
+			t->buf = new GLfloat[w*h*cSize];
 
 			int tIndex = 0;
 			for (int y = 0; y < h; y++)
@@ -3184,8 +3205,8 @@ Scene* importScene(const char* filePath, Camera* cam)
 				{
 					for (int c = 0; c < cSize; c++)
 					{
-						GLubyte d;
-						file.read((char*)&d, 1);
+						GLfloat d;
+						file.read((char*)&d, 4);
 						t->buf[tIndex] = d;
 						tIndex++;
 					}

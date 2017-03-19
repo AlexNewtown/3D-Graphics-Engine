@@ -43,13 +43,13 @@ void main()
 	color = pixelColor(gTextureCoord, gMaterialIndex);
 	float direct = 1.0/float(numLightMaps);
 	vec3 n = computeBumpMapNormal();
+	vec3 viewingDirection = -normalize(vec3(gPosition));
 
 	/* Compute direct lighting */
 	for(int i=0; i< numLightMaps; i++)
 	{
 		vec4 lightCameraTransform = matrixMult(lightCameraMatrix[i],gLocalPosition);
 		vec3 lightDirection = -normalize(vec3(lightCameraTransform));
-		vec3 viewingDirection = -normalize(vec3(gPosition));
 
 		float f = sampleBRDF(lightDirection, viewingDirection, n, gMaterialIndex, gTextureCoord);
 		float sh = f*shadowed(gLocalPosition);
@@ -62,10 +62,12 @@ void main()
 	vec3 indirect = vec3(0.0,0.0,0.0);
 	for(int i=0; i < numLightMaps; i++)
 	{
-		indirect = indirect + direct*color*indirectLighting(i);
+		indirect = indirect + direct*indirectLighting(i);
 	}
-	color = color*s + indirect;
-	outColor = vec4(color,1.0);
+	color = color*s + color*indirect;
+	float dp = dot(viewingDirection,n);
+	
+	outColor = vec4(color*dp,1.0);
 	fragDepth = gl_FragDepth;
 }
 
@@ -74,7 +76,7 @@ vec3 computeBumpMapNormal()
 	return getBumpMapNormal(basisX, basisZ, gTextureCoord, gMaterialIndex, vec3(gNormal));
 }
 
-const int numRandomSamplesBounce = 5;
+const int numRandomSamplesBounce = 6;
 const int numRandomSamplesSS = 5;
 vec3 indirectLighting(int lightMapIndex)
 {
@@ -104,7 +106,7 @@ vec3 indirectReflective(int lightMapIndex)
 
 	float r1;
 	float r2;
-	float radiusMax = 0.15;
+	float radiusMax = 0.1;
 
 	if(lightTexPos.x < 0 || lightTexPos.x > 1.0 || lightTexPos.y < 0 || lightTexPos.y > 1.0)
 	{
@@ -132,10 +134,11 @@ vec3 indirectReflective(int lightMapIndex)
 			rad = abs(rrs);
 			vec3 a = normalize(x - xs);
 			vec3 b = -a;
+			float radMag = length(rad);
 
-			rad = rad*max(0.0, dot(ns, a));
-			rad = rad*max(0.0, dot(en, b));
-			totalRadiance = totalRadiance + rad;
+			radMag = radMag*max(0.0, dot(ns, a));
+			radMag = radMag*max(0.0, dot(en, b));
+			totalRadiance = totalRadiance + vec3(1.0,1.0,1.0)*radMag;
 		}
 	}
 	totalRadiance = totalRadiance / float(numRandomSamplesBounce);
@@ -146,11 +149,11 @@ vec3 indirectSubsurfaceScattering(int lightMapIndex)
 {
 	randomSeed = vec2(2.0,18.9);
 	vec3 totalRadiance = vec3(0.0,0.0,0.0);
+	vec3 viewingDirection = -normalize(vec3(gPosition));
 
 	vec3 x = vec3(entityPosition);
 	vec3 en = vec3(entityNormal);
 	vec3 lightDir = normalize(x - vec3(lightPosition[lightMapIndex]));
-
 	vec4 lightCameraTransform = matrixMult(lightCameraMatrix[lightMapIndex],gLocalPosition);
 
 	vec2 lightTexPos;
@@ -160,8 +163,7 @@ vec3 indirectSubsurfaceScattering(int lightMapIndex)
 
 	float r1;
 	float r2;
-	float radiusMax = 0.001;
-
+	float radiusMax = 0.00001;
 	for(int i=0; i < numRandomSamplesSS; i++)
 	{
 		r1 = random();
@@ -176,17 +178,16 @@ vec3 indirectSubsurfaceScattering(int lightMapIndex)
 		{
 			vec3 xs = vec3( texture(globalPositionTexture,vec3(randPos,float(lightMapIndex))) );
 			vec3 ns = vec3(texture(normalTexture,vec3(randPos, float(lightMapIndex))));
-					
+			
 			vec3 rad = abs(rrs);
-			vec3 a = normalize(x - xs);
-			vec3 b = -a;
 								
 			float inputRadScale = dot(-lightDir,en);
 			surfaceNormal = en;
-			float ff = fresnelTransmittance(-lightDir, vec3(0.0,0.0,0.0));
-		
-			totalRadiance = totalRadiance + inputRadScale*ff*rad*subsurfaceScatteringInf(x, xs, en, absorption, reducedScattering, indexOfRefraction);
-		
+			float ffIn = fresnelTransmittance(-lightDir, vec3(0.0,0.0,0.0));
+			float ffOut = fresnelTransmittance(viewingDirection, vec3(0.0,0.0,0.0));
+			vec3 sss = subsurfaceScatteringInf(x, xs, ns, absorption, reducedScattering, indexOfRefraction);
+			//totalRadiance = totalRadiance + inputRadScale*ff*rad*sss;
+			totalRadiance = totalRadiance + rad*ffIn*inputRadScale*sss;
 		}
 	}
 	totalRadiance = totalRadiance / float(numRandomSamplesSS);

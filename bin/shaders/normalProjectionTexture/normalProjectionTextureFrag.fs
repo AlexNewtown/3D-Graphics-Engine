@@ -3,8 +3,8 @@
 in vec4 gNormal;
 flat in int gMaterialIndex;
 in vec2 gTextureCoord;
-flat in vec3 basisX;
-flat in vec3 basisZ;
+in vec3 basisX;
+in vec3 basisZ;
 
 vec3 computeBumpMapNormal();
 

@@ -30,18 +30,6 @@ layout(location = 0) out vec4 positionTexture;
 
 void main()
 {
-	/*
-	vec4 bMinGlobal = transformEye(vec4(boundsMin,1.0));
-	vec4 bMaxGlobal = transformEye(vec4(boundsMax,1.0));
-
-	vec3 boundsDistance = vec3(bMaxGlobal) - vec3(bMinGlobal);
-
-	outColor.x = (gPosition.x - bMinGlobal.x)/boundsDistance.x;
-	outColor.y = (gPosition.y - bMinGlobal.y)/boundsDistance.y;
-	outColor.z = (gPosition.z - bMinGlobal.z)/boundsDistance.z;
-	outColor.w = 1.0;
-	*/
-
 	positionTexture = vec4(vec3(gPosition),1.0);
 }
 

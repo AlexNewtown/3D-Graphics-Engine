@@ -150,7 +150,7 @@ vec3 lambertianBRDF(vec3 rIn, vec3 rOut)
 {
 	//vec3 kd = getMaterialKd(_materialIndex);
 	//kd = pixelColor(_textureCoord,_materialIndex);
-	return vec3(1.0,1.0,1.0)*dot(hVector,surfaceNormal);
+	return vec3(1.0,1.0,1.0);
 }
 
 vec3 torranceSparrowBRDF(vec3 rIn, vec3 rOut)
@@ -158,7 +158,7 @@ vec3 torranceSparrowBRDF(vec3 rIn, vec3 rOut)
 	float m = microfacetM;
 	vec3 kd = getMaterialKd(_materialIndex);
 	vec3 ks = getMaterialKs(_materialIndex);
-	vec3 tsbrdf = kd/PI + (ks/(4*PI*dot(surfaceNormal,rIn) ))*torranceSparrow_D(m,rIn,rOut)*fresnelFactor(rIn,rOut)*torranceSparrow_G(rIn,rOut);
+	vec3 tsbrdf = kd + (ks/(4*dot(surfaceNormal,rIn) ))*torranceSparrow_D(m,rIn,rOut)*fresnelFactor(rIn,rOut)*torranceSparrow_G(rIn,rOut);
 	return tsbrdf;
 }
 float torranceSparrow_D(float m, vec3 rIn, vec3 rOut)

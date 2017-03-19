@@ -34,6 +34,11 @@ void main()
 {
 	vec3 color;
 	color = pixelColor(gTextureCoord, gMaterialIndex);
+	if(color.x == 0.0 && color.y == 0.0 && color.z == 0.0)
+	{
+		color = vec3(1.0,1.0,1.0);
+	}
+	
 	vec3 n = computeBumpMapNormal();
 	normalOutput = vec4(n,1.0);
 	globalPositionOutput = vec4(vec3(gPosition),1.0);

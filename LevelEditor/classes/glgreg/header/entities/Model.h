@@ -61,8 +61,8 @@ struct Material_tex_int
 {
 	GLint materialIndex;
 	GLint illum;
-	GLint pad_thai;
-	GLint paddington_bear;
+	GLint isTexBound;
+	GLint isBumpTexBound;
 };
 
 struct Material_tex_float
