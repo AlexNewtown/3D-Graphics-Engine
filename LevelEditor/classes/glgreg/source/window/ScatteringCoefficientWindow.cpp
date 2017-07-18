@@ -331,7 +331,7 @@ void populateReducedScatteringEntryFields(Entity* e)
 
 	sprintf(fs, "%0.3f", ((Model_obj*)e)->reducedScattering[0]);
 	i = 0;
-	while (fs[i] != '\0')
+	while (fs[i] != '\0' && i < 32)
 	{
 		p[i] = fs[i];
 		i++;
@@ -341,7 +341,7 @@ void populateReducedScatteringEntryFields(Entity* e)
 
 	sprintf(fs, "%0.3f", ((Model_obj*)e)->reducedScattering[1]);
 	i = 0;
-	while (fs[i] != '\0')
+	while (fs[i] != '\0' && i < 32)
 	{
 		p[i] = fs[i];
 		i++;
@@ -351,7 +351,7 @@ void populateReducedScatteringEntryFields(Entity* e)
 
 	sprintf(fs, "%0.3f", ((Model_obj*)e)->reducedScattering[2]);
 	i = 0;
-	while (fs[i] != '\0')
+	while (fs[i] != '\0' && i < 32)
 	{
 		p[i] = fs[i];
 		i++;

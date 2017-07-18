@@ -449,7 +449,7 @@ void Shader::render()
 		glBeginTransformFeedback(__primitiveType);
 	}
 	glDrawArrays(__primitiveType,0,__numPrimitives);
-
+	
 	if (__transformFeedback)
 	{
 		glEndTransformFeedback();
@@ -522,9 +522,22 @@ bool Shader::addAttributeBuffer( void *ptr, int numDataPoints, int structSize, i
 
 	__vbo.push_back(vbo);
 
-	if(__numPrimitives < (int)numDataPoints/attribSize)
-		__numPrimitives = ceil((float)numDataPoints/attribSize);
-
+	if (__primitiveType == GL_TRIANGLES)
+	{
+		__numPrimitives = ceil((float)numDataPoints / attribSize);
+	}
+	else if (__primitiveType == GL_POINTS)
+	{
+		__numPrimitives = numDataPoints / 4;
+	}
+	else if (__primitiveType == GL_LINES)
+	{
+		__numPrimitives = ceil((float)numDataPoints / attribSize);
+	}
+	else if (__primitiveType == GL_LINE_STRIP)
+	{
+		__numPrimitives = ceil((float)numDataPoints / attribSize);
+	}
 
 	return true;
 }
@@ -819,12 +832,13 @@ bool Shader::addTextureArray(std::vector<Texture_obj<GLfloat>*> tex, int numText
 		}
 	}
 
-	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 3, GL_RGBA32F, maxWidth, maxHeight, numTextures);
-
+	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 8, GL_RGBA32F, maxWidth, maxHeight, numTextures);
+	//glGenerateMipmap(GL_TEXTURE_2D);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
 	for (int i = 0; i<numTextures; i++)
 	{

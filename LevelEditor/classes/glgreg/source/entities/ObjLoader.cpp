@@ -759,7 +759,7 @@ Texture_obj<GLfloat>* ObjLoader::loadTexture(std::string textureName)
 	*/
 
 	cv::Mat im = cv::imread(filePath, cv::IMREAD_UNCHANGED);
-	//cv::resize(im, im, cv::Size(512, 512), 0.0, 0.0, CV_INTER_CUBIC);
+	cv::resize(im, im, cv::Size(512, 512), 0.0, 0.0, CV_INTER_CUBIC);
 
 	width = im.rows;
 	height = im.cols;

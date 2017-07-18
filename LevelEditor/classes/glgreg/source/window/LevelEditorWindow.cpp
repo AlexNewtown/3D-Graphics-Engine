@@ -668,6 +668,30 @@ LRESULT CALLBACK levelEditorWindowCallback(HWND hWnd, UINT uMsg, WPARAM wParam, 
 				levelEditorScene->shadingType = SHADER_TYPE_INSTANT_RADIOSITY;
 				updateWindowSetting(windowSettingIndex);
 			}
+			else if (LOWORD(wParam) == SUB_MENU_SHADING_TYPE_STOCHASTIC_RAY_TRACE)
+			{
+				uncheckShadingMenuItems();
+				CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_STOCHASTIC_RAY_TRACE, MF_CHECKED);
+				//windowSettingIndex = NO_LIGHTING_WINDOW_INDEX;
+				levelEditorScene->shadingType = SHADER_TYPE_STOCHASTIC_RAY_TRACE;
+				updateWindowSetting(windowSettingIndex);
+			}
+			else if (LOWORD(wParam) == SUB_MENU_SHADING_TYPE_IRRADIANCE_CACHING)
+			{
+				uncheckShadingMenuItems();
+				CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_IRRADIANCE_CACHING, MF_CHECKED);
+				//windowSettingIndex = NO_LIGHTING_WINDOW_INDEX;
+				levelEditorScene->shadingType = SHADER_TYPE_IRRADIANCE_CACHING;
+				updateWindowSetting(windowSettingIndex);
+			}
+			else if (LOWORD(wParam) == SUB_MENU_SHADING_TYPE_POINT_CLOUD)
+			{
+				uncheckShadingMenuItems();
+				CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_POINT_CLOUD, MF_CHECKED);
+				//windowSettingIndex = NO_LIGHTING_WINDOW_INDEX;
+				levelEditorScene->shadingType = SHADER_TYPE_POINT_CLOUD;
+				updateWindowSetting(windowSettingIndex);
+			}
 #endif
 		}
 			
@@ -684,7 +708,7 @@ void addMenu(HWND hWnd)
 	AppendMenu(menu, MF_STRING | MF_POPUP, (UINT)hMenuFile, (LPCWSTR)TEXT("File"));
 	AppendMenu(hMenuFile, MF_STRING, SUB_MENU_IMPORT_SCENE, (LPCWSTR)TEXT("Import Scene"));
 	AppendMenu(hMenuFile, MF_STRING, SUB_MENU_NEW_LIGHT_ENTITY, (LPCWSTR)TEXT("New Light Entity"));
-	AppendMenu(hMenuFile, MF_STRING, SUB_MENU_NEW_BOUNDARY_ENTITY, (LPCWSTR)TEXT("New Boundary Entity"));
+	//AppendMenu(hMenuFile, MF_STRING, SUB_MENU_NEW_BOUNDARY_ENTITY, (LPCWSTR)TEXT("New Boundary Entity"));
 	AppendMenu(hMenuFile, MF_STRING, SUB_MENU_NEW_ENTITY, (LPCWSTR)TEXT("New Entity"));
 	AppendMenu(hMenuFile, MF_STRING, SUB_MENU_DELETE_ENTITY, (LPCWSTR)TEXT("Delete Entity"));
 	AppendMenu(hMenuFile, MF_STRING, SUB_MENU_EXPORT_SCENE, (LPCWSTR)TEXT("Export Scene"));
@@ -713,11 +737,14 @@ void addMenu(HWND hWnd)
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_NORMAL_PROJECTION_TEXTURE, (LPCWSTR)TEXT("Normal Projection Texture (deferred shader)"));
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_RADIANCE_SHADOW_MAP, (LPCWSTR)TEXT("Radiance Shadow Map (deferred shader)"));
 
+	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_POINT_CLOUD, (LPCWSTR)TEXT("Point Cloud"));
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_SHADOW_MAP, (LPCWSTR)TEXT("Shadow Map"));
+	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_STOCHASTIC_RAY_TRACE, (LPCWSTR)TEXT("Stocastic Ray Tracing (offline)"));
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_PHOTON_MAP, (LPCWSTR)TEXT("Photon Map"));
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_SUBSURFACE_SCATTERING_DIFFUSE, (LPCWSTR)TEXT("Subsurface Scattering Diffuse"));
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_REFLECTIVE_SHADOW_MAP, (LPCWSTR)TEXT("Reflective Shadow Map"));
 	AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_INSTANT_RADIOSITY, (LPCWSTR)TEXT("Instant Radiosity"));
+	//AppendMenu(hMenuShaderType, MF_STRING, SUB_MENU_SHADING_TYPE_IRRADIANCE_CACHING, (LPCWSTR)TEXT("Irradiance Caching"));
 	uncheckShadingMenuItems();
 
 	SetMenu(hWnd, menu);
@@ -765,8 +792,6 @@ LRESULT CALLBACK newEntityWindowCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 
 bool createNewEntity(char* filePath)
 {
-	//ifstream myFile;
-	//myFile.open(__filePath.c_str());
 	FILE* file = fopen((const char*)filePath, "r");
 	if (!file)
 	{
@@ -775,14 +800,31 @@ bool createNewEntity(char* filePath)
 	}
 	fclose(file);
 
-	RastShader* s = new RastShader();
-	s->setShaderType(SHADER_TYPE_RASTERIZE);
-	Model_obj* m = new Model_obj((const char*)filePath, s, false);
-	s->addUniform((void*)m->mvm()->data(), "modelViewMatrix", UNIFORM_MAT_4, true);
-	s->addUniform((void*)getControllerInstance()->pm()->data(), "projectionMatrix", UNIFORM_MAT_4, false);
-	s->addUniform((void*)m->nm()->data(), "normalMatrix", UNIFORM_MAT_4, true);
-	levelEditorScene->addEntity(m);
-	levelEditorReset(currentSelectedEntity, levelEditorScene);
+	std::string fpString(filePath);
+	size_t extensionIndex = fpString.find_last_of(".");
+	std::string extensionString = fpString.substr(extensionIndex + 1);
+	
+	if (extensionString.compare("obj") == 0)
+	{
+		RastShader* s = new RastShader();
+		s->setShaderType(SHADER_TYPE_RASTERIZE);
+		Model_obj* m = new Model_obj((const char*)filePath, s, false);
+		s->addUniform((void*)m->mvm()->data(), "modelViewMatrix", UNIFORM_MAT_4, true);
+		s->addUniform((void*)getControllerInstance()->pm()->data(), "projectionMatrix", UNIFORM_MAT_4, false);
+		s->addUniform((void*)m->nm()->data(), "normalMatrix", UNIFORM_MAT_4, true);
+		levelEditorScene->addEntity(m);
+		levelEditorReset(currentSelectedEntity, levelEditorScene);
+	}
+	else if (extensionString.compare("pcl") == 0)
+	{
+		PointCloudShader* s = new PointCloudShader();
+		PointCloudEntity* pce = new PointCloudEntity((const char*)filePath, s);
+		s->addUniform((void*)pce->mvm()->data(), "modelViewMatrix", UNIFORM_MAT_4, true);
+		s->addUniform((void*)getControllerInstance()->pm()->data(), "projectionMatrix", UNIFORM_MAT_4, false);
+		s->addUniform((void*)pce->nm()->data(), "normalMatrix", UNIFORM_MAT_4, true);
+		levelEditorScene->addPointCloudEntity(pce);
+		levelEditorReset(currentSelectedEntity, levelEditorScene);
+	}
 	return true;
 }
 
@@ -831,6 +873,11 @@ void unselectEntities()
 	{
 		levelEditorScene->getBoundaryEntity(i)->selected = false;
 	}
+
+	for (int i = 0; i < levelEditorScene->numPointCloudEntities(); i++)
+	{
+		levelEditorScene->getPointCloudEntity(i)->selected = false;
+	}
 }
 
 void uncheckShadingMenuItems()
@@ -858,6 +905,9 @@ void uncheckShadingMenuItems()
 	CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_NORMAL_PROJECTION_TEXTURE, MF_UNCHECKED);
 	CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_RADIANCE_SHADOW_MAP, MF_UNCHECKED);
 	CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_INSTANT_RADIOSITY, MF_UNCHECKED);
+	CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_STOCHASTIC_RAY_TRACE, MF_UNCHECKED);
+	CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_IRRADIANCE_CACHING, MF_UNCHECKED);
+	CheckMenuItem(hMenuShaderType, SUB_MENU_SHADING_TYPE_POINT_CLOUD, MF_UNCHECKED);
 }
 
 unsigned int getLightWindowsIndex(unsigned int lightType)

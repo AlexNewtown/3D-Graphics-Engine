@@ -45,19 +45,13 @@ struct KdTreeTextureInt
 	GLint children0;
 	GLint children1;
 
-	GLint adjacentX0;
-	GLint adjacentX1;
-
-	GLint adjacentY0;
-	GLint adjacentY1;
-
-	GLint adjacentZ0;
-	GLint adjacentZ1;
-
 	GLint sortOn;
 
 	GLint numFaces;
 	GLint faceIndex;
+	
+	GLint totalNumFaces;
+	GLint paddint2;
 };
 
 struct KdTreeTexture

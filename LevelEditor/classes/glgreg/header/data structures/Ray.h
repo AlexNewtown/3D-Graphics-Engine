@@ -11,7 +11,7 @@ struct Ray
 {
 	Ray();
 	~Ray();
-
+	void set(float* pos, float* dir);
 	Point pos;
 	Point dir;
 };

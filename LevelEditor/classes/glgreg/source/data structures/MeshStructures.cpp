@@ -6,6 +6,26 @@
 #include <stdio.h>
 #include <ctime>
 
+Vertex::Vertex()
+{
+
+}
+Vertex::Vertex(GLfloat x, GLfloat y, GLfloat z)
+{
+	pos[0] = x;
+	pos[1] = y;
+	pos[2] = z;
+}
+
+TexCoord::TexCoord()
+{
+
+}
+TexCoord::TexCoord(GLfloat x, GLfloat y)
+{
+	pos[0] = x;
+	pos[1] = y;
+}
 
 Face::Face()
 {
@@ -43,8 +63,14 @@ float Face::area()
 	float B[] = { vertex[0]->pos[0] - vertex[2]->pos[0], vertex[0]->pos[1] - vertex[2]->pos[1] , vertex[0]->pos[2] - vertex[2]->pos[2] };
 	float C[] = { vertex[1]->pos[0] - vertex[2]->pos[0], vertex[1]->pos[1] - vertex[2]->pos[1] , vertex[1]->pos[2] - vertex[2]->pos[2] };
 	float a = dotProduct(A, A);
+	a = maximum(a, 0.0);
+
 	float b = dotProduct(B, B);
+	b = maximum(b, 0.0);
+
 	float c = dotProduct(C, C);
+	c = maximum(c, 0.0);
+
 	a = sqrt(a);
 	b = sqrt(b);
 	c = sqrt(c);
@@ -56,6 +82,47 @@ float Face::area()
 	return ar;
 }
 
+float triangleArea(float* v1, float* v2, float* v3)
+{
+	float A[] = { v1[0] - v2[0], v1[1] - v2[1] , v1[2] - v2[2] };
+	float B[] = { v1[0] - v3[0], v1[1] - v3[1] , v1[2] - v3[2] };
+	float C[] = { v2[0] - v3[0], v2[1] - v3[1] , v2[2] - v3[2] };
+	float a = dotProduct(A, A);
+	a = maximum(a, 0.0);
+
+	float b = dotProduct(B, B);
+	b = maximum(b, 0.0);
+
+	float c = dotProduct(C, C);
+	c = maximum(c, 0.0);
+
+	a = sqrt(a);
+	b = sqrt(b);
+	c = sqrt(c);
+
+	float s = (a + b + c) / 2.0;
+
+	float ar = s*(s - a)*(s - b)*(s - c);
+	ar = maximum(ar, 0.0);
+	ar = sqrt(ar);
+	return ar;
+}
+
+void interpolateNormals(Face* face, float* position, float* normalResult)
+{
+	float areaV1 = triangleArea(face->vertex[1]->pos, face->vertex[2]->pos, position);
+	float areaV2 = triangleArea(face->vertex[0]->pos, face->vertex[2]->pos, position);
+	float areaV3 = triangleArea(face->vertex[0]->pos, face->vertex[1]->pos, position);
+	float totalArea = areaV1 + areaV2 + areaV3;
+	areaV1 = areaV1 / totalArea;
+	areaV2 = areaV2 / totalArea;
+	areaV3 = areaV3 / totalArea;
+
+	normalResult[0] = areaV1 * face->normal[0]->pos[0] + areaV2 * face->normal[1]->pos[0] + areaV3 * face->normal[2]->pos[0];
+	normalResult[1] = areaV1 * face->normal[0]->pos[1] + areaV2 * face->normal[1]->pos[1] + areaV3 * face->normal[2]->pos[1];
+	normalResult[2] = areaV1 * face->normal[0]->pos[2] + areaV2 * face->normal[1]->pos[2] + areaV3 * face->normal[2]->pos[2];
+	normalize(normalResult);
+}
 
 void listDelete(List *l, void *ptr)
 {

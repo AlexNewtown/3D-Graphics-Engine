@@ -47,6 +47,13 @@
 #include "shader\ReflectiveShadowMapShader.h"
 #include "shader\RadianceShadowMapShader.h"
 #include "shader\InstantRadiosityShader.h"
+#include "shader\StochasticRayTraceShader.h"
+#include "shader\PointCloudShader.h"
+#include <random>
+#include "openCL\RayTracerKernel.h"
+#include "shader/IrradianceCachingShader.h"
+#include "openCL/NNKernel.h"
+#include "entities/PointCloudEntity.h"
 
 class Scene;
 
@@ -118,6 +125,9 @@ public:
 	*/
 	void addBoundaryEntity(BoundaryEntity* be);
 
+
+	void addPointCloudEntity(PointCloudEntity* pce);
+
 	/*
 	@function detectCollisions()
 	
@@ -183,6 +193,9 @@ public:
 	*/
 	BoundaryEntity* getBoundaryEntity(int index);
 
+
+	PointCloudEntity* getPointCloudEntity(int index);
+
 	/*
 	@function removeEntity(int index)
 	@params: int index: index of the entity in the list.
@@ -192,6 +205,9 @@ public:
 	bool removeEntity(int index);
 	bool removeEntity(Entity* e);
 
+	bool removePointCloudEntity(int index);
+	bool removePointCloudEntity(PointCloudEntity* pce);
+
 	/*
 	@function getEntityIndex(Entity* e)
 	@params: Entitiy* e
@@ -199,6 +215,8 @@ public:
 	gets the entity index pointed by 'e'.
 	*/
 	int getEntityIndex(Entity* e);
+
+	int getPointCloudEntityIndex(PointCloudEntity* pce);
 	
 	template <typename T>
 	Scene* copyScene();
@@ -217,7 +235,22 @@ public:
 	int numEntities();
 	int numLightEntities();
 	int numBoundaryEntities();
+	int numPointCloudEntities();
 
+	/*
+		renders the scene to an image at 'renderDirectory'
+	*/
+	void renderOffline(int imageWidth, int imageHeight, std::string renderDirectory);
+	void renderOfflineParallel(int imageWidth, int imageHeight, std::string renderDirectory);
+	void renderIrradianceCache(float** nnWeights, int* weightSize, float** nnBiases, int* biasSize, int inputSize, int layer1Size, int layer2Size);
+
+	float directRadiance(float* position, float* normal, MeshHierarchyKd* mh);
+	void interpolateNormal(Face* face, float* hitPoint, float* normalResult);
+	void computeFaceBasis(Face* face, float* normal, float* basisX, float* basisZ);
+	std::vector<float> computeVertexRadiance();
+
+	void addMeshHierarchyKdTexture();
+	void addPointLightTexture();
 	void addLightEntitiesToScene();
 	void addFaceLightTextureToScene();
 	void partitionBoundaryEntities();
@@ -303,6 +336,8 @@ private:
 
 	/*vector containing all the boundary entites in the scene*/
 	std::vector<BoundaryEntity*> __boundaryEntityList;
+
+	std::vector<PointCloudEntity*> __pointCloudEntityList;
 
 	Camera* __camera;
 	BoundingHierarchy* __boundingHierarchy;

@@ -14,6 +14,17 @@ Ray::~Ray()
 	
 }
 
+void Ray::set(float* pos, float* dir)
+{
+	this->pos.x = pos[0];
+	this->pos.y = pos[1];
+	this->pos.z = pos[2];
+
+	this->dir.x = dir[0];
+	this->dir.y = dir[1];
+	this->dir.z = dir[2];
+}
+
 RayHitInfo::RayHitInfo()
 {
 	tmin = 0x7FFFFFFF;

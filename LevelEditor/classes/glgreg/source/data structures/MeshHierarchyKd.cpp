@@ -683,13 +683,13 @@ Bounds* MeshHierarchyKd::computeMeshBounds(std::vector<Face*> faces, int start, 
 {
 	Face* currentFace = faces[start];
 	
-	float minX = minimum(minimum(currentFace->vertex[0]->pos[0], currentFace->vertex[1]->pos[0]), currentFace->vertex[2]->pos[0]);
-	float minY = minimum(minimum(currentFace->vertex[0]->pos[1], currentFace->vertex[1]->pos[1]), currentFace->vertex[2]->pos[1]);
-	float minZ = minimum(minimum(currentFace->vertex[0]->pos[2], currentFace->vertex[1]->pos[2]), currentFace->vertex[2]->pos[2]);
+	float minX = minimum(minimum(currentFace->vertex[0]->pos[0], currentFace->vertex[1]->pos[0]), currentFace->vertex[2]->pos[0]) - 1.0;
+	float minY = minimum(minimum(currentFace->vertex[0]->pos[1], currentFace->vertex[1]->pos[1]), currentFace->vertex[2]->pos[1]) - 1.0;
+	float minZ = minimum(minimum(currentFace->vertex[0]->pos[2], currentFace->vertex[1]->pos[2]), currentFace->vertex[2]->pos[2]) - 1.0;
 
-	float maxX = maximum(maximum(currentFace->vertex[0]->pos[0], currentFace->vertex[1]->pos[0]), currentFace->vertex[2]->pos[0]);
-	float maxY = maximum(maximum(currentFace->vertex[0]->pos[1], currentFace->vertex[1]->pos[1]), currentFace->vertex[2]->pos[1]);
-	float maxZ = maximum(maximum(currentFace->vertex[0]->pos[2], currentFace->vertex[1]->pos[2]), currentFace->vertex[2]->pos[2]);
+	float maxX = maximum(maximum(currentFace->vertex[0]->pos[0], currentFace->vertex[1]->pos[0]), currentFace->vertex[2]->pos[0]) + 1.0;
+	float maxY = maximum(maximum(currentFace->vertex[0]->pos[1], currentFace->vertex[1]->pos[1]), currentFace->vertex[2]->pos[1]) + 1.0;
+	float maxZ = maximum(maximum(currentFace->vertex[0]->pos[2], currentFace->vertex[1]->pos[2]), currentFace->vertex[2]->pos[2]) + 1.0;
 
 	for (int i = start+1; i < end; i++)
 	{
@@ -812,15 +812,6 @@ KdTreeTextureInt::KdTreeTextureInt()
 	children0 = -1;
 	children1 = -1;
 
-	adjacentX0 = -1;
-	adjacentX1 = -1;
-
-	adjacentY0 = -1;
-	adjacentY1 = -1;
-
-	adjacentZ0 = -1;
-	adjacentZ1 = -1;
-
 	sortOn = -1;
 
 	numFaces = 0;
@@ -862,64 +853,12 @@ void cloneKdTreeIntTex(MeshHierarchyKd* tree, KdTreeTextureInt &texInt)
 		texInt.children1 = tree->children(1)->treeIndex;
 	}
 
-	/* SET ADJACENT TREE X */
-	if(tree->getAdjTrees()->x[0] == NULL)
-	{
-		texInt.adjacentX0 = -1;
-	}
-	else
-	{
-		texInt.adjacentX0 = tree->getAdjTrees()->x[0]->treeIndex;
-	}
-	if(tree->getAdjTrees()->x[1] == NULL)
-	{
-		texInt.adjacentX1 = -1;
-	}
-	else
-	{
-		texInt.adjacentX1 = tree->getAdjTrees()->x[1]->treeIndex;
-	}
 
-	
-	/* SET ADJACENT TREE Y */
-	if(tree->getAdjTrees()->y[0] == NULL)
-	{
-		texInt.adjacentY0 = -1;
-	}
-	else
-	{
-		texInt.adjacentY0 = tree->getAdjTrees()->y[0]->treeIndex;
-	}
-	if(tree->getAdjTrees()->y[1] == NULL)
-	{
-		texInt.adjacentY1 = -1;
-	}
-	else
-	{
-		texInt.adjacentY1 = tree->getAdjTrees()->y[1]->treeIndex;
-	}
-
-	/* SET ADJACENT TREE Z */
-	if(tree->getAdjTrees()->z[0] == NULL)
-	{
-		texInt.adjacentZ0 = -1;
-	}
-	else
-	{
-		texInt.adjacentZ0 = tree->getAdjTrees()->z[0]->treeIndex;
-	}
-	if(tree->getAdjTrees()->z[1] == NULL)
-	{
-		texInt.adjacentZ1 = -1;
-	}
-	else
-	{
-		texInt.adjacentZ1 = tree->getAdjTrees()->z[1]->treeIndex;
-	}
 
 	if(tree->isLeaf())
 	{
 		texInt.numFaces = tree->numIntersectingFaces();
+		texInt.faceIndex =  tree->face->index;
 	}
 	else
 	{

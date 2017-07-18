@@ -104,11 +104,11 @@ LRESULT CALLBACK createEntityBoxWindowCallback(HWND hWnd, UINT uMsg, WPARAM wPar
 				if (lParam == (LPARAM)entityBox_entityList) //listBoxIndex == ENTITY_LIST_BOX_INDEX)
 				{
 					int i = SendMessage(entityBox_entityList, LB_GETCURSEL, 0, 0);
-					int totalEntities = levelEditorScene->numEntities() + levelEditorScene->numLightEntities();
+					int totalEntities = levelEditorScene->numEntities() + levelEditorScene->numLightEntities() + levelEditorScene->numPointCloudEntities();
 					if (i >= levelEditorScene->numEntities() + levelEditorScene->numLightEntities())
 					{
 						i = i - levelEditorScene->numEntities() - levelEditorScene->numLightEntities();
-						populateBoundaryEntryFields((SphereBoundaryEntity*)levelEditorScene->getBoundaryEntity(i), &currentSelectedEntity);
+						populateEntryFields(levelEditorScene->getPointCloudEntity(i), &currentSelectedEntity);
 					}
 					else if (i >= levelEditorScene->numEntities())
 					{
@@ -160,6 +160,18 @@ LRESULT CALLBACK createEntityBoxWindowCallback(HWND hWnd, UINT uMsg, WPARAM wPar
 							if (selectionIndex == i)
 							{
 								e = levelEditorScene->getLightEntity(j);
+								//windowSettingIndex = LIGHT_WINDOW_INDEX;
+							}
+							selectionIndex++;
+						}
+					}
+					for (int j = 0; j < levelEditorScene->numPointCloudEntities(); j++)
+					{
+						if (levelEditorScene->getPointCloudEntity(j)->selected)
+						{
+							if (selectionIndex == i)
+							{
+								e = levelEditorScene->getPointCloudEntity(j);
 								//windowSettingIndex = LIGHT_WINDOW_INDEX;
 							}
 							selectionIndex++;
@@ -259,6 +271,28 @@ void populateEntityListBox(Scene* s)
 		SendMessage(entityBox_entityList, LB_INSERTSTRING, entityListIndex, (LPARAM)p);
 		entityListIndex++;
 		if (m->selected)
+		{
+			SendMessage(entityBox_selectedEntityList, LB_INSERTSTRING, selectedIndex, (LPARAM)p);
+			selectedIndex++;
+		}
+
+		free(p);
+	}
+
+	numE = s->numPointCloudEntities();
+	for (int i = 0; i < numE; i++)
+	{
+		PointCloudEntity* pce = s->getPointCloudEntity(i);
+		std::string eName = pce->entityName();
+		TCHAR* p = new TCHAR[eName.size() + 1];
+		for (int j = 0; j < eName.size(); j++)
+		{
+			p[j] = eName[j];
+		}
+		p[eName.size()] = '\0';
+		SendMessage(entityBox_entityList, LB_INSERTSTRING, entityListIndex, (LPARAM)p);
+		entityListIndex++;
+		if (pce->selected)
 		{
 			SendMessage(entityBox_selectedEntityList, LB_INSERTSTRING, selectedIndex, (LPARAM)p);
 			selectedIndex++;

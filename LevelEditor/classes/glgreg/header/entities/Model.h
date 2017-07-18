@@ -133,6 +133,8 @@ public:
 	void setShaderType(unsigned int st);
 	std::vector<Face*> faceList();
 	std::vector<Vertex*> vertexList();
+	std::vector<Vertex*> normalList();
+	std::vector<TexCoord*> texCoordList();
 	void addFace(Face* f);
 	void removeFace(int index);
 	void addIrradianceVector();
@@ -143,6 +145,8 @@ public:
 	void addEnvironmentMap(std::vector<EnvironmentMap*>& environmentMap);
 	void addFaceListTexture();
 	void copyParameters(Model_obj* m);
+	ObjLoader* objloader();
+	void subdivideFaces(float maxArea);
 
 	/*BRDF variables*/
 	int brdfType;
@@ -170,21 +174,22 @@ protected:
 	MeshHierarchyKd* __meshTree;
 	KdTreeTexture* __treeTex;
 	bool __anchored;
-	void computeBounds();
+	virtual void computeBounds();
 
-	void addVertices();
-	void addNormals();
-	void addTextureCoord();
-	void addMaterialIndex();
-	void addMaterialBuffer();
-	void addMaterialTextureArray();
-	void addMaterialBumpMapTextureArray();
-	void addTreeTextureBuffers();
-	void addBasisXZ();
-	void addFaceIndices();
-	void addVerticesIndex();
-	void addMaterialUniforms();
-	void addMatrixUniforms();
+	virtual void addVertices();
+	virtual void addNormals();
+	virtual void addTextureCoord();
+	virtual void addMaterialIndex();
+	virtual void addMaterialBuffer();
+	virtual void addMaterialTextureArray();
+	virtual void addMaterialBumpMapTextureArray();
+	virtual void addTreeTextureBuffers();
+	virtual void addBasisXZ();
+	virtual void addFaceIndices();
+	virtual void addVerticesIndex();
+	virtual void addMaterialUniforms();
+	virtual void addMatrixUniforms();
+	virtual void addVerticesPointCloud();
 
 	void cloneMaterialTexInt(Material_tex_int *mStd, Material* m);
 	void cloneMaterialTexFloat(Material_tex_float *mStd, Material* m);
@@ -194,7 +199,7 @@ protected:
 	Array* createMaterialTexIntArray(std::vector<Material*> materialList);
 
 	void addBoundingBox();
-	void subdivideFaces(float maxArea);
+	
 
 };
 

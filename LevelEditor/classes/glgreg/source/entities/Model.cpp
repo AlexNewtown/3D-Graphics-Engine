@@ -37,7 +37,7 @@ Model_obj::Model_obj(const char* filePath, Shader* s, bool anchored): Entity(),R
 	size_t startSub = stringName.find_last_of("/");
 	__entityName = stringName.substr(startSub+1, endSub - startSub - 1);
 
-	//subdivideFaces(0.5);
+	//subdivideFaces(0.01);
 
 	bounds = NULL;
 	float frustumDepth = abs((float)getControllerInstance()->camera()->farPlane() - (float)getControllerInstance()->camera()->nearPlane());
@@ -545,6 +545,67 @@ Model_obj::Model_obj(const char* filePath, Shader* s, bool anchored): Entity(),R
 
 		break;
 	}
+
+	case SHADER_TYPE_STOCHASTIC_RAY_TRACE:
+	{
+		addVertices();
+		addNormals();
+		addTextureCoord();
+		addMaterialIndex();
+		addBasisXZ();
+
+		if (__objLoader->materials().size() != 0)
+		{
+			addMaterialBuffer();
+			addMaterialTextureArray();
+			addMaterialBumpMapTextureArray();
+		}
+		addBoundingBox();
+		addMatrixUniforms();
+		addMaterialUniforms();
+		__shader->addUniform((void*)(&frustumDepth), "frustumDepth", UNIFORM_FLOAT_1, false);
+
+		float nearPlane = (float)getControllerInstance()->camera()->nearPlane();
+		float farPlane = (float)getControllerInstance()->camera()->farPlane();
+		__shader->addUniform((void*)&nearPlane, "nearPlane", UNIFORM_FLOAT_1, false);
+		__shader->addUniform((void*)&farPlane, "farPlane", UNIFORM_FLOAT_1, false);
+
+		break;
+	}
+
+	case SHADER_TYPE_IRRADIANCE_CACHING:
+	{
+		addVertices();
+		addNormals();
+		addTextureCoord();
+		addMaterialIndex();
+		addBasisXZ();
+
+		if (__objLoader->materials().size() != 0)
+		{
+			addMaterialBuffer();
+			addMaterialTextureArray();
+			addMaterialBumpMapTextureArray();
+		}
+		addBoundingBox();
+		addMatrixUniforms();
+		addMaterialUniforms();
+		__shader->addUniform((void*)(&frustumDepth), "frustumDepth", UNIFORM_FLOAT_1, false);
+
+		float nearPlane = (float)getControllerInstance()->camera()->nearPlane();
+		float farPlane = (float)getControllerInstance()->camera()->farPlane();
+		__shader->addUniform((void*)&nearPlane, "nearPlane", UNIFORM_FLOAT_1, false);
+		__shader->addUniform((void*)&farPlane, "farPlane", UNIFORM_FLOAT_1, false);
+
+		break;
+	}
+
+	case SHADER_TYPE_POINT_CLOUD:
+	{
+		addVerticesPointCloud();
+		addMatrixUniforms();
+		break;
+	}
 			
 
 	}
@@ -960,6 +1021,27 @@ void Model_obj::addMaterialBumpMapTextureArray()
 	
 }
 
+void Model_obj::addVerticesPointCloud()
+{
+	int numVertices = vertexList().size();
+	
+	GLfloat* vertexData = new GLfloat[numVertices * 4];
+	int index = 0;
+	for (int i = 0; i < vertexList().size(); i++)
+	{
+		Vertex* v = vertexList()[i];
+		
+		vertexData[index] = v->pos[0];
+		vertexData[index + 1] = v->pos[1];
+		vertexData[index + 2] = v->pos[2];
+		vertexData[index + 3] = 1.0;
+		index = index + 4;
+	}
+
+	__shader->addAttributeBuffer(vertexData, 4*numVertices, sizeof(GLfloat), GL_FLOAT, "position", 0, 4);
+	delete[] vertexData;
+}
+
 void Model_obj::cloneMaterialTexInt(Material_tex_int *mStd, Material* m)
 {
 	mStd->materialIndex = m->materialIndex;
@@ -1255,9 +1337,10 @@ void Model_obj::subdivideFaces(float maxArea)
 {
 	bool done = false;
 	int startingSearch = 0;
+
 	while (!done)
 	{
-		for (int i = startingSearch; i < faceList().size(); i++)
+		for (int i = 0; i < faceList().size(); i++)
 		{
 			Face* currentFace = faceList()[i];
 			if (currentFace->area() > maxArea)
@@ -1384,54 +1467,14 @@ void Model_obj::subdivideFaces(float maxArea)
 				}
 				
 
-				/* COPY THE MATERIAL INDEX*/
+				
 				fsub1->materialIndex = currentFace->materialIndex;
 				fsub2->materialIndex = currentFace->materialIndex;
 				fsub3->materialIndex = currentFace->materialIndex;
 				fsub4->materialIndex = currentFace->materialIndex;
 
-				/* COPY THE NORMALS */
-				fsub1->normal[0]->pos[0] = currentFace->normal[0]->pos[0];
-				fsub1->normal[0]->pos[1] = currentFace->normal[0]->pos[1];
-				fsub1->normal[0]->pos[2] = currentFace->normal[0]->pos[2];
-				fsub1->normal[1]->pos[0] = currentFace->normal[1]->pos[0];
-				fsub1->normal[1]->pos[1] = currentFace->normal[1]->pos[1];
-				fsub1->normal[1]->pos[2] = currentFace->normal[1]->pos[2];
-				fsub1->normal[2]->pos[0] = currentFace->normal[2]->pos[0];
-				fsub1->normal[2]->pos[1] = currentFace->normal[2]->pos[1];
-				fsub1->normal[2]->pos[2] = currentFace->normal[2]->pos[2];
 
-				fsub2->normal[0]->pos[0] = currentFace->normal[0]->pos[0];
-				fsub2->normal[0]->pos[1] = currentFace->normal[0]->pos[1];
-				fsub2->normal[0]->pos[2] = currentFace->normal[0]->pos[2];
-				fsub2->normal[1]->pos[0] = currentFace->normal[1]->pos[0];
-				fsub2->normal[1]->pos[1] = currentFace->normal[1]->pos[1];
-				fsub2->normal[1]->pos[2] = currentFace->normal[1]->pos[2];
-				fsub2->normal[2]->pos[0] = currentFace->normal[2]->pos[0];
-				fsub2->normal[2]->pos[1] = currentFace->normal[2]->pos[1];
-				fsub2->normal[2]->pos[2] = currentFace->normal[2]->pos[2];
-
-				fsub3->normal[0]->pos[0] = currentFace->normal[0]->pos[0];
-				fsub3->normal[0]->pos[1] = currentFace->normal[0]->pos[1];
-				fsub3->normal[0]->pos[2] = currentFace->normal[0]->pos[2];
-				fsub3->normal[1]->pos[0] = currentFace->normal[1]->pos[0];
-				fsub3->normal[1]->pos[1] = currentFace->normal[1]->pos[1];
-				fsub3->normal[1]->pos[2] = currentFace->normal[1]->pos[2];
-				fsub3->normal[2]->pos[0] = currentFace->normal[2]->pos[0];
-				fsub3->normal[2]->pos[1] = currentFace->normal[2]->pos[1];
-				fsub3->normal[2]->pos[2] = currentFace->normal[2]->pos[2];
-
-				fsub4->normal[0]->pos[0] = currentFace->normal[0]->pos[0];
-				fsub4->normal[0]->pos[1] = currentFace->normal[0]->pos[1];
-				fsub4->normal[0]->pos[2] = currentFace->normal[0]->pos[2];
-				fsub4->normal[1]->pos[0] = currentFace->normal[1]->pos[0];
-				fsub4->normal[1]->pos[1] = currentFace->normal[1]->pos[1];
-				fsub4->normal[1]->pos[2] = currentFace->normal[1]->pos[2];
-				fsub4->normal[2]->pos[0] = currentFace->normal[2]->pos[0];
-				fsub4->normal[2]->pos[1] = currentFace->normal[2]->pos[1];
-				fsub4->normal[2]->pos[2] = currentFace->normal[2]->pos[2];
-
-				/* 0, mid1, mid2*/
+				
 				fsub1->vertex[0]->pos[0] = currentFace->vertex[0]->pos[0];
 				fsub1->vertex[0]->pos[1] = currentFace->vertex[0]->pos[1];
 				fsub1->vertex[0]->pos[2] = currentFace->vertex[0]->pos[2];
@@ -1447,7 +1490,7 @@ void Model_obj::subdivideFaces(float maxArea)
 				
 
 
-				/*1, mid3, mid1*/
+				
 				fsub2->vertex[0]->pos[0] = currentFace->vertex[1]->pos[0];
 				fsub2->vertex[0]->pos[1] = currentFace->vertex[1]->pos[1];
 				fsub2->vertex[0]->pos[2] = currentFace->vertex[1]->pos[2];
@@ -1462,7 +1505,7 @@ void Model_obj::subdivideFaces(float maxArea)
 
 				
 
-				/*2, mid2, mid3*/
+				
 				fsub3->vertex[0]->pos[0] = currentFace->vertex[2]->pos[0];
 				fsub3->vertex[0]->pos[1] = currentFace->vertex[2]->pos[1];
 				fsub3->vertex[0]->pos[2] = currentFace->vertex[2]->pos[2];
@@ -1477,7 +1520,7 @@ void Model_obj::subdivideFaces(float maxArea)
 
 				
 
-				/*mid1,mid2,mid3*/
+				
 				fsub4->vertex[0]->pos[0] = midPos1[0];
 				fsub4->vertex[0]->pos[1] = midPos1[1];
 				fsub4->vertex[0]->pos[2] = midPos1[2];
@@ -1491,6 +1534,24 @@ void Model_obj::subdivideFaces(float maxArea)
 				fsub4->vertex[2]->pos[2] = midPos3[2];
 
 				
+				
+				interpolateNormals(currentFace, fsub1->vertex[0]->pos, fsub1->normal[0]->pos);
+				interpolateNormals(currentFace, fsub1->vertex[1]->pos, fsub1->normal[1]->pos);
+				interpolateNormals(currentFace, fsub1->vertex[2]->pos, fsub1->normal[2]->pos);
+
+				interpolateNormals(currentFace, fsub2->vertex[0]->pos, fsub2->normal[0]->pos);
+				interpolateNormals(currentFace, fsub2->vertex[1]->pos, fsub2->normal[1]->pos);
+				interpolateNormals(currentFace, fsub2->vertex[2]->pos, fsub2->normal[2]->pos);
+
+				interpolateNormals(currentFace, fsub3->vertex[0]->pos, fsub3->normal[0]->pos);
+				interpolateNormals(currentFace, fsub3->vertex[1]->pos, fsub3->normal[1]->pos);
+				interpolateNormals(currentFace, fsub3->vertex[2]->pos, fsub3->normal[2]->pos);
+
+				interpolateNormals(currentFace, fsub4->vertex[0]->pos, fsub4->normal[0]->pos);
+				interpolateNormals(currentFace, fsub4->vertex[1]->pos, fsub4->normal[1]->pos);
+				interpolateNormals(currentFace, fsub4->vertex[2]->pos, fsub4->normal[2]->pos);
+
+
 
 				fsub1->avg[0] = (fsub1->vertex[0]->pos[0] + fsub1->vertex[1]->pos[0] + fsub1->vertex[2]->pos[0]) / 3;
 				fsub1->avg[1] = (fsub1->vertex[0]->pos[1] + fsub1->vertex[1]->pos[1] + fsub1->vertex[2]->pos[1]) / 3;
@@ -1509,26 +1570,32 @@ void Model_obj::subdivideFaces(float maxArea)
 				fsub4->avg[2] = (fsub4->vertex[0]->pos[2] + fsub4->vertex[1]->pos[2] + fsub4->vertex[2]->pos[2]) / 3;
 
 
+				fsub1->index = currentFace->index;
+				fsub2->index = currentFace->index;
+				fsub3->index = currentFace->index;
+				fsub4->index = currentFace->index;
+
+
 				removeFace(i);
 				addFace(fsub1);
 				addFace(fsub2);
 				addFace(fsub3);
 				addFace(fsub4);
+				
 
 			}
+		}
 
-			for (int j = 0; j < faceList().size(); j++)
+		for (int j = 0; j < faceList().size(); j++)
+		{
+			if (faceList()[j]->area()  >  maxArea)
 			{
-				if (faceList()[i]->area()  > maxArea)
-				{
-					done = false;
-					startingSearch = j;
-					break;
-				}
-				else
-				{
-					done = true;
-				}
+				done = false;
+				break;
+			}
+			else
+			{
+				done = true;
 			}
 		}
 	}
@@ -1547,6 +1614,16 @@ std::vector<Face*> Model_obj::faceList()
 std::vector<Vertex*> Model_obj::vertexList()
 {
 	return __objLoader->vertexList();
+}
+
+std::vector<Vertex*> Model_obj::normalList()
+{
+	return __objLoader->normalList();
+}
+
+std::vector<TexCoord*> Model_obj::texCoordList()
+{
+	return __objLoader->texCoordList();
 }
 
 void Model_obj::addFace(Face* f)
@@ -2100,7 +2177,15 @@ void Model_obj::addEnvironmentMap(std::vector<EnvironmentMap*>& environmentMap)
 void Model_obj::addFaceListTexture()
 {
 	int numFaces = this->faceList().size();
-	float* faceTex = new float[numFaces * 3 * 4];
+	int faceDataStructureSize = 32;
+	float* faceTex = new float[numFaces * faceDataStructureSize];
+	/*
+	vertex: 4
+	normal : 4
+	texCoord : 2
+	materialIndex : 1
+	brdfIndex : 1
+	*/
 
 	int texIndex = 0;
 	for (int i = 0; i < numFaces; i++)
@@ -2120,10 +2205,48 @@ void Model_obj::addFaceListTexture()
 		faceTex[texIndex + 10] = this->faceList()[i]->vertex[2]->pos[2];
 		faceTex[texIndex + 11] = 1.0;
 		
-		texIndex = texIndex + 12;
+
+
+		faceTex[texIndex + 12] = this->faceList()[i]->normal[0]->pos[0];
+		faceTex[texIndex + 13] = this->faceList()[i]->normal[0]->pos[1];
+		faceTex[texIndex + 14] = this->faceList()[i]->normal[0]->pos[2];
+		faceTex[texIndex + 15] = 0.0;
+
+		faceTex[texIndex + 16] = this->faceList()[i]->normal[1]->pos[0];
+		faceTex[texIndex + 17] = this->faceList()[i]->normal[1]->pos[1];
+		faceTex[texIndex + 18] = this->faceList()[i]->normal[1]->pos[2];
+		faceTex[texIndex + 19] = 0.0;
+
+		faceTex[texIndex + 20] = this->faceList()[i]->normal[2]->pos[0];
+		faceTex[texIndex + 21] = this->faceList()[i]->normal[2]->pos[1];
+		faceTex[texIndex + 22] = this->faceList()[i]->normal[2]->pos[2];
+		faceTex[texIndex + 23] = 0.0;
+
+		if (this->faceList()[i]->texCoord[0] != NULL)
+		{
+			faceTex[texIndex + 24] = this->faceList()[i]->texCoord[0]->pos[0];
+			faceTex[texIndex + 25] = this->faceList()[i]->texCoord[0]->pos[1];
+		}
+
+		if (this->faceList()[i]->texCoord[1] != NULL)
+		{
+			faceTex[texIndex + 26] = this->faceList()[i]->texCoord[1]->pos[0];
+			faceTex[texIndex + 27] = this->faceList()[i]->texCoord[1]->pos[1];
+		}
+
+		if (this->faceList()[i]->texCoord[2] != NULL)
+		{
+			faceTex[texIndex + 28] = this->faceList()[i]->texCoord[2]->pos[0];
+			faceTex[texIndex + 29] = this->faceList()[i]->texCoord[2]->pos[1];
+		}
+
+		faceTex[texIndex + 30] = (float)this->faceList()[i]->materialIndex;
+		faceTex[texIndex + 31] = (float)this->faceList()[i]->brdfIndex;
+
+		texIndex = texIndex + faceDataStructureSize;
 	}
 
-	this->shader()->addBufferTexture((void*)faceTex, numFaces * 3 * 4, sizeof(float), "faceList", GL_RGBA32F, -1);
+	this->shader()->addBufferTexture((void*)faceTex, numFaces * faceDataStructureSize, sizeof(float), "faceList", GL_RGBA32F, -1);
 	this->shader()->addUniform(&numFaces, "numFaces", UNIFORM_INT_1, false);
 
 	delete faceTex;
@@ -2147,4 +2270,9 @@ void Model_obj::addMatrixUniforms()
 	__shader->addUniform((void*)this->localMvm()->data(), "entityMatrix", UNIFORM_MAT_4, true);
 	__shader->addUniform((void*)this->localNm()->data(), "entityNormalMatrix", UNIFORM_MAT_4, true);
 	__shader->addUniform((void*)this->mvmInverse()->data(), "modelViewMatrixInverse", UNIFORM_MAT_4, true);
+}
+
+ObjLoader* Model_obj::objloader()
+{
+	return __objLoader;
 }

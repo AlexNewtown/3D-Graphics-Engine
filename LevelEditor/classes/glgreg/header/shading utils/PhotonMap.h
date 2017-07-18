@@ -23,7 +23,7 @@ public:
 	PhotonMap();
 	~PhotonMap();
 	float pos[3];
-	float power;
+	float power[3];
 	float incidentDirection[3];
 	float normal[3];
 	unsigned int index;
@@ -37,6 +37,12 @@ public:
 	float diffuseP;
 	float specularP;
 	float indexOfRefraction;
+	
+	float diffuseReflectance[3];
+	float specularReflection[3];
+
+	int colorTexIndex;
+	int bumpTexIndex;
 };
 
 class PhotonMapKdTree

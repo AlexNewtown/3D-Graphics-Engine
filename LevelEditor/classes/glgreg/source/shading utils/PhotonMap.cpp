@@ -2,10 +2,13 @@
 
 PhotonMap::PhotonMap()
 {
-	pos[0] = 0.0;
-	pos[1] = 0.0;
-	pos[2] = 0.0;
-	power = 0;
+	pos[0] = 0.0f;
+	pos[1] = 0.0f;
+	pos[2] = 0.0f;
+	power[0] = 0.0f;
+	power[1] = 0.0f;
+	power[2] = 0.0f;
+
 	incidentDirection[0] = 0;
 	incidentDirection[1] = 0;
 	incidentDirection[2] = 0;
@@ -241,7 +244,8 @@ void* createPhotonMapTexture(std::vector < PhotonMap*> photonMap)
 		pmTex[texIndex + 4] = photonMap[i]->incidentDirection[1];
 		pmTex[texIndex + 5] = photonMap[i]->incidentDirection[2];
 
-		pmTex[texIndex + 6] = photonMap[i]->power;
+		float p = pow(photonMap[i]->power[0], 2.0) + pow(photonMap[i]->power[1], 2.0) + pow(photonMap[i]->power[2], 2.0);
+		pmTex[texIndex + 6] = sqrt(p);
 		texIndex += sizeof(PhotonMapTexture)/4;
 	}
 	return (void*)pmTex;
@@ -460,7 +464,9 @@ void createPhotonMapClusterTexture(std::vector<PhotonMap*> photonMap, void* &pho
 			pmt[pmIndex].dirX = photonLookup->incidentDirection[0];
 			pmt[pmIndex].dirY = photonLookup->incidentDirection[1];
 			pmt[pmIndex].dirZ = photonLookup->incidentDirection[2];
-			pmt[pmIndex].illum = photonLookup->power;
+			
+			float p = pow(photonLookup->power[0], 2.0) + pow(photonLookup->power[1], 2.0) + pow(photonLookup->power[2], 2.0);
+			pmt[pmIndex].illum = sqrt(p);
 			pmIndex++;
 		}
 	}

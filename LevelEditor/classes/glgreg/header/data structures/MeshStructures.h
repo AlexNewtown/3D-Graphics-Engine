@@ -53,6 +53,8 @@ void listDelete(List *l, void *ptr);
 
 struct Vertex
 {
+	Vertex();
+	Vertex(GLfloat x, GLfloat y, GLfloat z);
 	GLfloat pos[3];
 };
 
@@ -63,6 +65,8 @@ struct Edge
 
 struct TexCoord
 {
+	TexCoord();
+	TexCoord(GLfloat x, GLfloat y);
 	GLfloat pos[2];
 };
 
@@ -96,6 +100,9 @@ struct Array
 	int n;
 	void* buf;
 };
+
+float triangleArea(float* v1, float* v2, float* v3);
+void interpolateNormals(Face* face, float* position, float* normalResult);
 
 #endif
 

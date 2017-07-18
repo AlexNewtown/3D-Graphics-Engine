@@ -11,6 +11,14 @@
 *
 **********************************************************************/
 
+/*
+creating a new shader:
+- add a define in shaderUtils.h
+- add a case in model_obj
+- add a case in scene import and scene export
+- add new class which inherits colletive shader. set the shading type in the class.
+- add the shader to the shading type drop down menu
+*/
 
 #include "GL\glew.h"
 #include <stdio.h>
@@ -53,6 +61,9 @@
 #define SHADER_TYPE_NORMAL_PROJECTION_TEXTURE 28
 #define SHADER_TYPE_RADIANCE_SHADOW_MAP 29
 #define SHADER_TYPE_INSTANT_RADIOSITY 30
+#define SHADER_TYPE_STOCHASTIC_RAY_TRACE 31
+#define SHADER_TYPE_IRRADIANCE_CACHING 32
+#define SHADER_TYPE_POINT_CLOUD 33
 
 #define BRDF_TORRANCE_SPARROW 0
 #define BRDF_BEARD_MAXWELL 1

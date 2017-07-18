@@ -21,6 +21,8 @@
 #define SHADER_ENVIRONMENT_MAP_UTILS "../bin/shaders/utilities/environmentMapUtils.txt"
 #define SHADER_FACE_HIERARCHY_UTILS "../bin/shaders/utilities/faceHierarchyUtils.txt"
 #define SHADER_PHOTON_MAP_UTILS "../bin/shaders/utilities/photonMapUtils.txt"
+#define SHADER_POINT_LIGHT_TEXTURE_UTILS "../bin/shaders/utilities/pointLightTextureUtils.txt"
+#define SHADER_BVH_UTILS "../bin/shaders/utilities/bvhUtils.txt"
 
 class CollectiveShader : public Shader
 {

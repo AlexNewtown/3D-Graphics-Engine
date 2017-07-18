@@ -71,7 +71,7 @@ LRESULT CALLBACK createEditWindowCallback(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			staticEditWindows.push_back(&parameterBoxWindow);
 
 
-
+			
 			nonstaticEditWindows.push_back(&lightIntensityWindow);
 			nonstaticEditWindows.push_back(&brdfDropDownWindow);
 			nonstaticEditWindows.push_back(&indexOfRefractionWindow);
@@ -80,7 +80,7 @@ LRESULT CALLBACK createEditWindowCallback(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			nonstaticEditWindows.push_back(&lightTypeDropDownWindow);
 			nonstaticEditWindows.push_back(&absorptionWindow);
 			nonstaticEditWindows.push_back(&reducedScatteringWindow);
-
+			
 			parameterStrings.push_back(std::string("Light Intensity"));
 			parameterStrings.push_back(std::string("BRDF type"));
 			parameterStrings.push_back(std::string("Index of Refraction"));
