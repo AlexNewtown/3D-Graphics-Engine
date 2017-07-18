@@ -66,8 +66,9 @@ void main()
 	}
 	color = color*s + color*indirect;
 	float dp = dot(viewingDirection,n);
-	
-	outColor = vec4(color*dp,1.0);
+	color = color*dp;
+	outColor = vec4(length(color)*vec3(1.0,1.0,1.0),1.0);
+
 	fragDepth = gl_FragDepth;
 }
 
@@ -76,8 +77,10 @@ vec3 computeBumpMapNormal()
 	return getBumpMapNormal(basisX, basisZ, gTextureCoord, gMaterialIndex, vec3(gNormal));
 }
 
-const int numRandomSamplesBounce = 6;
+const int numRandomSamplesBounce = 5;
 const int numRandomSamplesSS = 5;
+float reflectiveRadiusMax = 0.2;
+float subsurfaceRadiusMax = 0.00001;
 vec3 indirectLighting(int lightMapIndex)
 {
 	vec3 ind = vec3(0.0,0.0,0.0);
@@ -106,12 +109,11 @@ vec3 indirectReflective(int lightMapIndex)
 
 	float r1;
 	float r2;
-	float radiusMax = 0.1;
 
 	if(lightTexPos.x < 0 || lightTexPos.x > 1.0 || lightTexPos.y < 0 || lightTexPos.y > 1.0)
 	{
 		lightTexPos = vec2(0.5,0.5);
-		radiusMax = 0.5;
+		reflectiveRadiusMax = 0.5;
 	}
 
 	for(int j=0; j < numRandomSamplesBounce; j++)
@@ -119,8 +121,8 @@ vec3 indirectReflective(int lightMapIndex)
 		r1 = random();
 		r2 = random();
 
-		float s = radiusMax*r1*sin(2*3.141592*r2);
-		float t = radiusMax*r1*cos(2*3.141592*r2);
+		float s = reflectiveRadiusMax*r1*sin(2*3.141592*r2);
+		float t = reflectiveRadiusMax*r1*cos(2*3.141592*r2);
 
 		vec2 randPos = lightTexPos + vec2(s,t);
 
@@ -163,13 +165,12 @@ vec3 indirectSubsurfaceScattering(int lightMapIndex)
 
 	float r1;
 	float r2;
-	float radiusMax = 0.00001;
 	for(int i=0; i < numRandomSamplesSS; i++)
 	{
 		r1 = random();
 		r2 = random();
-		float s = radiusMax*r1*sin(2*3.141592*r2);
-		float t = radiusMax*r1*cos(2*3.141592*r2);
+		float s = subsurfaceRadiusMax*r1*sin(2*3.141592*r2);
+		float t = subsurfaceRadiusMax*r1*cos(2*3.141592*r2);
 
 		vec2 randPos = lightTexPos + vec2(s,t);
 						

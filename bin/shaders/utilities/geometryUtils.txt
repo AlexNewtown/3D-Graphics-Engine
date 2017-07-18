@@ -26,6 +26,17 @@ struct Face_vertex
 	vec4 vertex1;
 	vec4 vertex2;
 	vec4 vertex3;
+
+	vec4 normal1;
+	vec4 normal2;
+	vec4 normal3;
+
+	vec2 texCoord1;
+	vec2 texCoord2;
+	vec2 texCoord3;
+
+	int matIndex;
+	int brdfIndex;
 };
 
 struct Face_normal
@@ -355,11 +366,11 @@ bool pointInSphere(vec3 point, vec3 sphereCenter, float sphereRadius)
 }
 bool pointInBox(vec3 point, vec3 boxLow, vec3 boxHigh)
 {
-	if( point.x < boxLow.x && point.x > boxHigh.x)
+	if( point.x < boxLow.x || point.x > boxHigh.x)
 		return false;
-	if( point.y < boxLow.y && point.y > boxHigh.y)
+	if( point.y < boxLow.y || point.y > boxHigh.y)
 		return false;
-	if( point.z < boxLow.z && point.z > boxHigh.z)
+	if( point.z < boxLow.z || point.z > boxHigh.z)
 		return false;
 
 	return true;

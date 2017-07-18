@@ -18,6 +18,7 @@ void main()
 	vec3 n = vec3(gNormal);
 	n = normalize(n);
 	float s = dot(n,-g);
-	outColor = vec4(s*pixelColor(gTextureCoord,gMaterialIndex),1.0);
+	//outColor = vec4(s*pixelColor(gTextureCoord,gMaterialIndex),1.0);
+	outColor = vec4(s*vec3(1.0,1.0,1.0),1.0);
 	fragDepth = gl_FragCoord.z;
 }

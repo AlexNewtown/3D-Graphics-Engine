@@ -1,0 +1,264 @@
+uniform isamplerBuffer treeBVHTextureInt;
+uniform samplerBuffer treeBVHTextureFloat;
+uniform samplerBuffer faceListBVH;
+uniform int numFacesBVH;
+
+uniform int treeBVHTexutreFloatDataSize;
+uniform int treeBVHTexutreIntDataSize;
+
+float getBVHTreeMaxX(int tIndex);
+float getBVHTreeMaxY(int tIndex);
+float getBVHTreeMaxZ(int tIndex);
+float getBVHTreeMaxW(int tIndex);
+
+float getBVHTreeMinX(int tIndex);
+float getBVHTreeMinY(int tIndex);
+float getBVHTreeMinZ(int tIndex);
+float getBVHTreeMinW(int tIndex);
+
+int getBVHTreeIndex(int tIndex);
+int getBVHTreeChild0(int tIndex);
+int getBVHTreeChild1(int tIndex);
+
+int getBVHTreeSortOn(int tIndex);
+int getBVHTreeNumFaces(int tIndex);
+int getBVHTreeFaceIndex(int tIndex);
+
+Face_vertex getFaceBVH(int faceIndex);
+
+bool rayTraceBVH(vec3 rayDir, vec3 rayPos,inout RayHitInfo hitInfo, inout int faceIndex);
+void enqueueBVH(int val);
+int getNextInQueueBVH();
+bool queueEmptyBVH();
+
+float getBVHTreeMaxX(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex);
+	return fetch.x;
+}
+
+float getBVHTreeMaxY(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex);
+	return fetch.y;
+}
+
+float getBVHTreeMaxZ(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex);
+	return fetch.z;
+}
+
+float getBVHTreeMaxW(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex);
+	return fetch.w;
+}
+
+float getBVHTreeMinX(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex+1);
+	return fetch.x;
+}
+
+float getBVHTreeMinY(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex+1);
+	return fetch.y;
+}
+
+float getBVHTreeMinZ(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex+1);
+	return fetch.z;
+}
+
+float getBVHTreeMinW(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreFloatDataSize;
+	vec4 fetch = texelFetch(treeBVHTextureFloat,texIndex+1);
+	return fetch.w;
+}
+
+int getBVHTreeIndex(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeBVHTextureInt,texIndex);
+	return fetch.x;
+}
+int getBVHTreeChild0(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeBVHTextureInt,texIndex);
+	return fetch.y;
+}
+int getBVHTreeChild1(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeBVHTextureInt,texIndex);
+	return fetch.z;
+}
+int getBVHTreeSortOn(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeBVHTextureInt,texIndex);
+	return fetch.w;
+}
+int getBVHTreeNumFaces(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeBVHTextureInt,texIndex + 1);
+	return fetch.x;
+}
+int getBVHTreeFaceIndex(int tIndex)
+{
+	int texIndex = tIndex*treeBVHTexutreIntDataSize;
+	ivec4 fetch = texelFetch(treeBVHTextureInt,texIndex + 1);
+	return fetch.y;
+}
+
+Face_vertex getFaceBVH(int faceIndex)
+{
+	int index = faceIndex*8;
+	Face_vertex fv;
+	fv.vertex1 = texelFetch(faceListBVH,index);
+	fv.vertex2 = texelFetch(faceListBVH,index + 1);
+	fv.vertex3 = texelFetch(faceListBVH,index + 2);
+
+	fv.normal1 = texelFetch(faceListBVH,index + 3);
+	fv.normal2 = texelFetch(faceListBVH,index + 4);
+	fv.normal3 = texelFetch(faceListBVH,index + 5);
+
+	vec4 fetch = texelFetch(faceListBVH,index + 6);
+	fv.texCoord1.x = fetch.x;
+	fv.texCoord1.y = fetch.y;
+
+	fv.texCoord2.x = fetch.z;
+	fv.texCoord2.y = fetch.w;
+
+	fetch = texelFetch(faceListBVH,index + 7);
+	fv.texCoord3.x = fetch.x;
+	fv.texCoord3.y = fetch.y;
+
+	fv.matIndex = int(fetch.z);
+	fv.brdfIndex = int(fetch.w);
+
+	return fv;
+}
+
+int rayQueue[200];
+int rayQueueIndex = 0;
+void enqueueBVH(int val)
+{
+	rayQueue[rayQueueIndex] = val;
+	rayQueueIndex++;
+}
+int getNextInQueueBVH()
+{
+	if(rayQueueIndex < 0)
+		return -1;
+	int returnVal = rayQueue[0];
+	for(int i=0; i<rayQueueIndex-1; i++)
+	{
+		rayQueue[i] = rayQueue[i+1];
+	}
+
+	rayQueueIndex--;
+	return returnVal;
+}
+bool queueEmptyBVH()
+{
+	if(rayQueueIndex < 0)
+		return true;
+	else
+		return false;
+}
+
+
+bool rayTraceBVH(vec3 rayDir, vec3 rayPos, inout RayHitInfo hitInfo, inout int faceIndex)
+{	
+	RayHitInfo hitTemp;
+	bool faceHit = false;
+	enqueueBVH(0);
+
+	faceIndex = -1;
+	float minDistance = 999999.0;
+
+
+
+
+	if(false)
+	{
+	for(int i=0; i < numFacesBVH; i++)
+	{
+		Face_vertex face = getFaceBVH(i);
+		if(rayTriangleIntersect(face, rayDir, rayPos, hitTemp))
+		{
+			if(hitTemp.tmin > 0.0 && hitTemp.tmin < minDistance)
+			{
+				copyHitInfo(hitInfo, hitTemp);
+				faceHit = true;
+				faceIndex = i;
+				minDistance = hitTemp.tmin;
+			}
+		}
+	}
+
+	return faceHit;
+	}
+
+
+
+
+
+
+
+	int pp = 0;
+	while(!queueEmptyBVH())
+	{
+		int q = getNextInQueueBVH();
+		vec3 min = vec3(getBVHTreeMinX(q),getBVHTreeMinY(q),getBVHTreeMinZ(q));
+		vec3 max = vec3(getBVHTreeMaxX(q),getBVHTreeMaxY(q),getBVHTreeMaxZ(q));
+
+		if(rayBoxIntersect(rayDir, rayPos, min, max, hitTemp) || pointInBox(rayPos, min, max))
+		{
+			if(getBVHTreeChild0(q) == -1 && getBVHTreeChild1(q) == -1)
+			{
+				int fi = getBVHTreeFaceIndex(q);
+				Face_vertex face = getFaceBVH(fi);
+				if(rayTriangleIntersect(face, rayDir, rayPos, hitTemp))
+				{
+					if(hitTemp.tmin > 0.0 && hitTemp.tmin < minDistance)
+					{
+						copyHitInfo(hitInfo, hitTemp);
+						faceHit = true;
+						faceIndex = fi;
+						minDistance = hitTemp.tmin;
+					}
+				}
+			}
+			else
+			{
+				int child0 = getBVHTreeChild0(q);
+				int child1 = getBVHTreeChild1(q);
+				enqueueBVH(child0);
+				enqueueBVH(child1);
+			}
+
+		}
+		pp++;
+
+		if(pp > 120)
+			break;
+	}
+
+	return faceHit;
+
+}

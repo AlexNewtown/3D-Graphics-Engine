@@ -1,0 +1,19 @@
+uniform int numPointLights;
+uniform samplerBuffer pointLightTexture;
+
+vec3 getPointLightPosition(int lIndex);
+float getPointLightIntensity(int lIndex);
+
+vec3 getPointLightPosition(int lIndex)
+{
+	int lookup = lIndex;
+	vec4 fetch = texelFetch(pointLightTexture,lookup);
+	return vec3(fetch);
+}
+
+float getPointLightIntensity(int lIndex)
+{
+	int lookup = lIndex;
+	vec4 fetch = texelFetch(pointLightTexture,lookup);
+	return fetch.w;
+}

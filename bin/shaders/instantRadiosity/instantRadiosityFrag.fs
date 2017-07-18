@@ -28,6 +28,7 @@ const int MAX_NUM_IR_LIGHTS = 100;
 uniform int numIrLightMaps;
 uniform vec4 irLightPosition[MAX_NUM_IR_LIGHTS];
 uniform mat4 irCameraMatrix[MAX_NUM_IR_LIGHTS];
+uniform vec3 irLightColor[MAX_NUM_IR_LIGHTS];
 uniform sampler2DArray irDepthMap;
 //x,y,z,power
 
@@ -37,7 +38,7 @@ void main()
 	vec3 s = vec3(0.0,0.0,0.0);
 	color = pixelColor(gTextureCoord, gMaterialIndex);
 	vec3 ambient = 0.0*vec3(1.0,1.0,1.0);
-	float direct = 3.0/float(numIrLightMaps + numLightMaps);
+	float direct = 1.0/float(numIrLightMaps + numLightMaps);
 
 	vec3 n = computeBumpMapNormal();
 	vec3 entPos = vec3(matrixMult(entityMatrix, vec4(vec3(gLocalPosition),1.0)));
@@ -48,11 +49,11 @@ void main()
 		vec3 lightDirection = normalize(vec3(irLightPosition[i]) - entPos);
 		
 		float dp = dot(lightDirection,vec3(entityNormal));
-		float f = irLightPosition[i].w*dp;
 		float sh = shadowed(gLocalPosition,irCameraMatrix[i], irDepthMap, i);
-
+		vec3 lColor = 10.0*irLightColor[i];
 		sh = min(sh,1.0);
-		s = s + f*direct*sh*vec3(1.0,1.0,1.0);
+		sh = sh*dp;
+		s = s + lColor*direct*sh;
 	}
 
 	for(int i=0; i< numLightMaps; i++)

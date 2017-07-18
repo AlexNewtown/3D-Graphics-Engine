@@ -3,15 +3,35 @@ uniform int numFaces;
 
 Face_vertex getFace(int faceIndex);
 float rayTraceFaces(vec3 rayDir, vec3 rayPos, inout RayHitInfo rhi);
+float rayTraceFaces(vec3 rayDir, vec3 rayPos, inout RayHitInfo rhi, inout int returnFaceIndex);
 float computeNormalDepth(vec3 pos, vec3 normal);
 
 Face_vertex getFace(int faceIndex)
 {
-	int index = faceIndex*3;
+	int index = faceIndex*8;
 	Face_vertex fv;
 	fv.vertex1 = texelFetch(faceList,index);
 	fv.vertex2 = texelFetch(faceList,index + 1);
 	fv.vertex3 = texelFetch(faceList,index + 2);
+
+	fv.normal1 = texelFetch(faceList,index + 3);
+	fv.normal2 = texelFetch(faceList,index + 4);
+	fv.normal3 = texelFetch(faceList,index + 5);
+
+	vec4 fetch = texelFetch(faceList,index + 6);
+	fv.texCoord1.x = fetch.x;
+	fv.texCoord1.y = fetch.y;
+
+	fv.texCoord2.x = fetch.z;
+	fv.texCoord2.y = fetch.w;
+
+	fetch = texelFetch(faceList,index + 7);
+	fv.texCoord3.x = fetch.x;
+	fv.texCoord3.y = fetch.y;
+
+	fv.matIndex = int(fetch.z);
+	fv.brdfIndex = int(fetch.w);
+
 	return fv;
 }
 
@@ -50,6 +70,38 @@ float rayTraceFaces(vec3 rayDir, vec3 rayPos, inout RayHitInfo rhi)
 		}
 
 	}
+	return minDist;
+}
+
+float rayTraceFaces(vec3 rayDir, vec3 rayPos, inout RayHitInfo rhi, inout int returnFaceIndex)
+{
+	RayHitInfo hiTemp;
+	float minDist = 99999.0;
+	returnFaceIndex = -1;
+	for(int i=0; i < numFaces; i++)
+	{
+
+		Face_vertex fv = getFace(i);
+		fv.vertex1 = matrixMult(entityMatrix,fv.vertex1);
+		fv.vertex2 = matrixMult(entityMatrix,fv.vertex2);
+		fv.vertex3 = matrixMult(entityMatrix,fv.vertex3);
+
+		if(rayTriangleIntersect(fv, rayDir, rayPos + rayDir*0.01,hiTemp))
+		{
+			if(hiTemp.tmin > 0.0)
+			{
+				copyHitInfo(rhi, hiTemp);
+				if(hiTemp.tmin < minDist)
+				{
+					minDist = hiTemp.tmin;
+					/*get the closest face*/
+					returnFaceIndex = i;
+				}
+			}
+		}
+
+	}
+
 	return minDist;
 }
 
