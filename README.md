@@ -17,27 +17,24 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 
 ## Algorithms
 
-### Photon Map
-[Jensen, Henrik Wann. "Global illumination using photon maps." Rendering Techniques’ 96. Springer Vienna, 1996. 21-30.]
+### Offline
 
+#### Stochastic Ray Tracing
+[Kajiya, James T. "The rendering equation." ACM Siggraph Computer Graphics. Vol. 20. No. 4. ACM, 1986.]
+![Stochastic Ray Tracing](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/rayTracedImage_uniform_10000.png?raw=true)
+
+#### Photon Map
+[Jensen, Henrik Wann. "Global illumination using photon maps." Rendering Techniques’ 96. Springer Vienna, 1996. 21-30.]
 ![Photon Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/photonMapDiffuse.png?raw=true)
 
-### Reflective Shadow Map
+## Online
+
+#### Reflective Shadow Map
 [Dachsbacher, Carsten, and Marc Stamminger. "Reflective shadow maps." Proceedings of the 2005 symposium on Interactive 3D graphics and games. ACM, 2005.]
 
-#### Indirect Lighting + Subsurface Scattering
-
-![Reflective Shadow Map Indirect](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Reflective%20Shadow%20Map%20Indirect.png?raw=true)
-
 #### Direct Lighting + Indirect Lighting + Subsurface Scattering
-
 ![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Reflective%20Shadow%20Map.png?raw=true)
 
-### Instant Radiosity
+#### Instant Radiosity
 [Keller, Alexander. "Instant radiosity." Proceedings of the 24th annual conference on Computer graphics and interactive techniques. ACM Press/Addison-Wesley Publishing Co., 1997.]
-
-![Instant Radiosity 1](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%203.png?raw=true)
-
-![Instant Radiosity 2](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%201.png?raw=true)
-
-![Instant Radiosity 3](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%202.png?raw=true)
+![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%203.png?raw=true)
