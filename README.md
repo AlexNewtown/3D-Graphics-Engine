@@ -19,22 +19,26 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 
 ### Offline
 
-#### Stochastic Ray Tracing
-[Kajiya, James T. "The rendering equation." ACM Siggraph Computer Graphics. Vol. 20. No. 4. ACM, 1986.]
+#### Stochastic Ray Tracing [1]
+
 ![Stochastic Ray Tracing](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/rayTracedImage_uniform_10000.png?raw=true)
 
-#### Photon Map
-[Jensen, Henrik Wann. "Global illumination using photon maps." Rendering Techniques’ 96. Springer Vienna, 1996. 21-30.]
+#### Photon Map [2]
+
 ![Photon Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/photonMapDiffuse.png?raw=true)
 
 ## Online
 
-#### Reflective Shadow Map
-[Dachsbacher, Carsten, and Marc Stamminger. "Reflective shadow maps." Proceedings of the 2005 symposium on Interactive 3D graphics and games. ACM, 2005.]
+#### Reflective Shadow Map [3]
 
 #### Direct Lighting + Indirect Lighting + Subsurface Scattering
 ![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Reflective%20Shadow%20Map.png?raw=true)
 
-#### Instant Radiosity
-[Keller, Alexander. "Instant radiosity." Proceedings of the 24th annual conference on Computer graphics and interactive techniques. ACM Press/Addison-Wesley Publishing Co., 1997.]
+#### Instant Radiosity [4]
+
 ![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%203.png?raw=true)
+
+[1] [Kajiya, James T. "The rendering equation." ACM Siggraph Computer Graphics. Vol. 20. No. 4. ACM, 1986.]
+[2] [Jensen, Henrik Wann. "Global illumination using photon maps." Rendering Techniques’ 96. Springer Vienna, 1996. 21-30.]
+[3] [Dachsbacher, Carsten, and Marc Stamminger. "Reflective shadow maps." Proceedings of the 2005 symposium on Interactive 3D graphics and games. ACM, 2005.]
+[4] [Keller, Alexander. "Instant radiosity." Proceedings of the 24th annual conference on Computer graphics and interactive techniques. ACM Press/Addison-Wesley Publishing Co., 1997.]
