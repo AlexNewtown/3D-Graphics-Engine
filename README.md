@@ -30,7 +30,7 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 + left mouse selects entities.
 + choose an entity from a list to edit.
 
-## dependencies
+## Dependencies
 
 OpenGL, OpenCL, OpenCV
 
