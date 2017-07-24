@@ -8,16 +8,16 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 
 + add entities, supports wavefront (.obj) / point clouds (.pcl, custom data structure).
 + set entity parameters:
- - position, scale, rotation, index of refraction, microfacet roughness, absorption, reduced scattering.
+	* position, scale, rotation, index of refraction, microfacet roughness, absorption, reduced scattering.
 + add lights.
 + set light parameters:
- - light intensity.
+	* light intensity.
 + set shading type:
- - Shadow Map.
- - Stochastic Ray tracing (offline).
- - photon map (offline).
- - reflective shadow map.
- - instant radiosity.
+	* Direct Shadow Map.
+	* Stochastic Ray tracing (offline).
+	* Photon Map (offline).
+	* Reflective Shadow Map.
+	* instant radiosity.
 + file->Export Scene, exports the scene data to a file.
 + file->Import Scene, imports the scene data from a file.
 + delete entit.
