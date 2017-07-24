@@ -38,7 +38,14 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 
 ![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%203.png?raw=true)
 
+## License
+
+This project is licensed under the terms of the MIT license.
+
 [1] [Kajiya, James T. "The rendering equation." ACM Siggraph Computer Graphics. Vol. 20. No. 4. ACM, 1986.]
+
 [2] [Jensen, Henrik Wann. "Global illumination using photon maps." Rendering Techniques’ 96. Springer Vienna, 1996. 21-30.]
+
 [3] [Dachsbacher, Carsten, and Marc Stamminger. "Reflective shadow maps." Proceedings of the 2005 symposium on Interactive 3D graphics and games. ACM, 2005.]
+
 [4] [Keller, Alexander. "Instant radiosity." Proceedings of the 24th annual conference on Computer graphics and interactive techniques. ACM Press/Addison-Wesley Publishing Co., 1997.]
