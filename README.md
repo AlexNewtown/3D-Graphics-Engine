@@ -32,7 +32,7 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 
 ## dependencies
 
-openGL, openCL, openCV
+OpenGL, OpenCL, OpenCV
 
 ## Algorithms
 
