@@ -1,4 +1,4 @@
-# Global Illumination
+# 3D Graphics Engine
 
 A graphics engine written in c++ with openGL. Used for testing global illumination algorithms. Custom shaders may also be added.
 
