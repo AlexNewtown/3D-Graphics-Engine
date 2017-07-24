@@ -1,21 +1,42 @@
 # Global Illumination
 
-A graphics engine written in c++ with openGL. Used for testing global illumination algorithms.
+A graphics engine written in c++ with openGL. Used for testing global illumination algorithms. Custom shaders may also be added.
 
-## Editor
+![editor sample](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/editorSample.png?raw=true)
 
-+ add entite(s), supports wavefront (.obj).
-+ entity parameters: BRDF type, index of refraction, absorption coefficient, reduced scattering coefficient.
+## Features
+
++ add entities, supports wavefront (.obj) / point clouds (.pcl, custom data structure).
++ set entity parameters:
+ - position, scale, rotation, index of refraction, microfacet roughness, absorption, reduced scattering.
 + add lights.
-+ set shading type.
++ set light parameters:
+ - light intensity.
++ set shading type:
+ - Shadow Map.
+ - Stochastic Ray tracing (offline).
+ - photon map (offline).
+ - reflective shadow map.
+ - instant radiosity.
++ file->Export Scene, exports the scene data to a file.
++ file->Import Scene, imports the scene data from a file.
++ delete entit.
++ delete lights.
 
 ### Controls:
 + wasd or right mouse button moves camera.
++ shift moves down.
++ space bar moves up.
 + left mouse selects entities.
-+ file->Export Scene, exports the scene data to a file.
-+ file->Import Scene, imports the scene data from a file.
++ choose an entity from a list to edit.
+
+## dependencies
+
+openGL, openCL, openCV
 
 ## Algorithms
+
+A comprehensive global illumination survey can be found here: [Global illumination survey](https://gregjksmith.github.io/Global-Illumination/)
 
 ### Offline
 
