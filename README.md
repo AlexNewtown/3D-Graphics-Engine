@@ -1,6 +1,6 @@
 # 3D Graphics Engine
 
-A graphics engine written in c++ with openGL. Used for testing global illumination algorithms. Custom shaders may also be added.
+A 3D graphics engine written in c++ with openGL. Used primarily for testing global illumination algorithms.
 
 ![editor sample](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/editorSample.png?raw=true)
 
@@ -20,23 +20,35 @@ A graphics engine written in c++ with openGL. Used for testing global illuminati
 	* instant radiosity.
 + file->Export Scene, exports the scene data to a file.
 + file->Import Scene, imports the scene data from a file.
-+ delete entit.
++ delete entities.
 + delete lights.
 
 ### Controls:
 + wasd or right mouse button moves camera.
-+ shift moves down.
-+ space bar moves up.
++ shift moves the camera down.
++ space bar moves the camera up.
 + left mouse selects entities.
 + choose an entity from a list to edit.
 
 ## Dependencies
 
-OpenGL, OpenCL, OpenCV
+Headers and library files must be included into your project:
+
+GLEW, freeglut, OpenCL, OpenCV
+
+## Install
+
+Include and build source located at 'LevelEditor/classes/glgreg'.
+
+Two separate Builds may exist: an editor build and a viewer build. 
+The Editor build includes editing function whereas the viewer build does not. The viewer build simply loads the scene file and allows
+the user to move the camera.
+
+For editor builds add preprocessor '_EDITOR' for viewer builds add '_VIEWER'.
 
 ## Algorithms
 
-A comprehensive global illumination survey can be found here: [Global illumination survey](https://gregjksmith.github.io/Global-Illumination/)
+A comprehensive global illumination survey can be found here: [Global illumination survey](https://gregjksmith.github.io/3D-Graphics-Engine/)
 
 ### Offline
 
