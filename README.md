@@ -64,12 +64,13 @@ A comprehensive global illumination survey can be found here: [Global illuminati
 
 #### Reflective Shadow Map [3]
 
-#### Direct Lighting + Indirect Lighting + Subsurface Scattering
+Direct Lighting + Indirect Lighting + Subsurface Scattering
+
 ![Reflective Shadow Map](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/Reflective%20Shadow%20Map.png?raw=true)
 
 #### Instant Radiosity [4]
 
-![Reflective Shadow Map](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/Instant%20Radiosity%203.png?raw=true)
+![Instant Radiosity](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/Instant%20Radiosity%203.png?raw=true)
 
 ## License
 
