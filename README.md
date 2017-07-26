@@ -38,7 +38,7 @@ GLEW, freeglut, OpenCL, OpenCV
 
 ## Install
 
-Include and build source located at 'LevelEditor/classes/glgreg'.
+Include and build source located at 'src'.
 
 Two separate Builds may exist: an editor build and a viewer build. 
 The Editor build includes editing function whereas the viewer build does not. The viewer build simply loads the scene file and allows
@@ -54,22 +54,22 @@ A comprehensive global illumination survey can be found here: [Global illuminati
 
 #### Stochastic Ray Tracing [1]
 
-![Stochastic Ray Tracing](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/rayTracedImage_uniform_10000.png?raw=true)
+![Stochastic Ray Tracing](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/rayTracedImage_uniform_10000.png?raw=true)
 
 #### Photon Map [2]
 
-![Photon Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/photonMapDiffuse.png?raw=true)
+![Photon Map](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/photonMapDiffuse.png?raw=true)
 
 ## Online
 
 #### Reflective Shadow Map [3]
 
 #### Direct Lighting + Indirect Lighting + Subsurface Scattering
-![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Reflective%20Shadow%20Map.png?raw=true)
+![Reflective Shadow Map](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/Reflective%20Shadow%20Map.png?raw=true)
 
 #### Instant Radiosity [4]
 
-![Reflective Shadow Map](https://github.com/Gregjksmith/Global-Illumination/blob/master/images/Instant%20Radiosity%203.png?raw=true)
+![Reflective Shadow Map](https://github.com/Gregjksmith/3D-Graphics-Engine/blob/master/images/Instant%20Radiosity%203.png?raw=true)
 
 ## License
 
