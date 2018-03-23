@@ -60,7 +60,7 @@ public:
 	void clampRadiance(int imageWidth, int imageHeight, float* image);
 	void clampRadiance(std::vector<IrradianceCache*> irr);
 
-	const int numRayTracingIters = 100;
+	int numRayTracingIters;
 
 private:
 	int __numLights;

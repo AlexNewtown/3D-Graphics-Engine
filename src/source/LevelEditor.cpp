@@ -43,8 +43,8 @@
 #include "window\LevelEditorWindow.h"
 #include "levelEditorGlobals.h"
 #include "openGL/Renderbuffer.h"
-#include "classes\glgreg\header\shader\FilterBlurShader.h"
-#include "CL\cl.h"
+#include "shader/FilterBlurShader.h"
+#include <CL\cl.h>
 #endif
 
 
@@ -401,14 +401,14 @@ void initShaders()
 	levelEditorScene = new Scene(controller->camera());
 #ifdef _EDITOR
 	RastShader* rastShaderC = new RastShader();
-	Model_obj* cornellBox = new Model_obj(OBJ_FILE_PATH_CORNELL_BOX, rastShaderC, false);
-	cornellBox->scaleTo(32, 32, 32);
+	//Model_obj* cornellBox = new Model_obj(OBJ_FILE_PATH_CORNELL_BOX, rastShaderC, false);
+	//cornellBox->scaleTo(32, 32, 32);
 
 	LightEntity* light = new LightEntity(SURFACE_LIGHT);
 	light->moveTo(0.0, 27.0, 30.0);
 	//light->scale(3.5, 3.5, 3.5);
 	light->intensity = 8.0;
-	levelEditorScene->addEntity(cornellBox);
+	//levelEditorScene->addEntity(cornellBox);
 	levelEditorScene->addLightEntity(light);
 	levelEditorUpdate(currentSelectedEntity, levelEditorScene);
 	updateWindowSetting(windowSettingIndex);

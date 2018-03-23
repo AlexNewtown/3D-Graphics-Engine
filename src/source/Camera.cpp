@@ -23,6 +23,7 @@ Camera::Camera(GLfloat fieldOfView, GLfloat aspectRatio, GLfloat nearPlane, GLfl
 	__rMatrix = new Matrix4x4();
 	__invMatrix = new Matrix4x4();
 	__projectionMatrix = new Matrix4x4();
+	__nm = nullptr;
 
 	__fov = fieldOfView;
 	__aspectRatio = aspectRatio;
@@ -62,6 +63,8 @@ Camera::Camera(GLfloat fieldOfView, GLfloat aspectRatio, GLfloat nearPlane, GLfl
 	__nearPlane = nearPlane;
 	__farPlane = farPlane;
 	__projectionMatrix->perspective(__fov, __aspectRatio, __nearPlane, __farPlane);
+	__nm = nullptr;
+	__rMatrix = nullptr;
 }
 
 /*destructor*/

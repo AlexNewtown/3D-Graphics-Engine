@@ -43,7 +43,7 @@ extern unsigned int windowSettingIndex;
 #define MILLISECONDS_PER_FRAME 17
 #define MILLISECONDS_PER_UPDATE 10
 
-#define POST_PROCESSING 1
+#define POST_PROCESSING 0
 
 extern bool keyPress[256];
 

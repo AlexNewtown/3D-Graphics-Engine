@@ -7,7 +7,7 @@ Face** tempArray;
 MeshHierarchyKd::MeshHierarchyKd(std::vector<Face*> faces, int numFaces)
 {
 	__boundary = computeMeshBounds(faces,0,numFaces);
-
+	__node = NULL;
 	__children[0] = NULL;
 	__children[1] = NULL;
 	parent = NULL;
@@ -19,16 +19,19 @@ MeshHierarchyKd::MeshHierarchyKd(std::vector<Face*> faces, int numFaces)
 }
 MeshHierarchyKd::MeshHierarchyKd(std::vector<Face*> faces, int start, int end, int numFacesInMesh, int sortOn, Bounds* bounds)
 {
-	__children[0] = NULL;
-	__children[1] = NULL;
+	__node = NULL;
+	__children[0] = nullptr;
+	__children[1] = nullptr;
 	__boundary = computeMeshBounds(faces, start, end);
 	build(faces, start, end, numFacesInMesh, sortOn);
 }
 
 MeshHierarchyKd::~MeshHierarchyKd()
 {
-	delete __node;
-	delete __boundary;
+	if(__node != NULL)
+		delete __node;
+	if(__boundary != NULL)
+		delete __boundary;
 	if (children(0) != NULL)
 		delete children(0);
 	if (children(1) != NULL)
@@ -820,8 +823,10 @@ KdTreeTextureInt::KdTreeTextureInt()
 
 KdTreeTexture::~KdTreeTexture()
 {
-	delete texFloat;
-	delete texInt;
+	if(texFloat != nullptr)
+		delete texFloat;
+	if(texInt != nullptr)
+		delete texInt;
 }
 
 KdTreeTexture::KdTreeTexture(int numNodes)

@@ -20,15 +20,15 @@ void CollectiveShader::constructShader()
 	{
 		if( __shaderLinesVert.size() <= 1)
 		{
-			printf("===============Vertex file source is empty=================\n");
+			OutputDebugStringA("===============Vertex file source is empty=================\n");
 		}
 		if( __shaderLinesFrag.size() <= 1)
 		{
-			printf("===============fragment file source is empty=================\n");
+			OutputDebugStringA("===============fragment file source is empty=================\n");
 		}
 		if( __shaderLinesGeom.size() <= 1)
 		{
-			printf("===============geometry file source is empty=================\n");
+			OutputDebugStringA("===============geometry file source is empty=================\n");
 		}
 		return;
 	}
@@ -41,15 +41,15 @@ void CollectiveShader::constructShader()
 	{
 		if( __vShader < 0)
 		{
-			printf("===============Could not allocate vertex Shader=================\n");
+			OutputDebugStringA("===============Could not allocate vertex Shader=================\n");
 		}
 		if( __fShader < 0)
 		{
-			printf("===============Could not allocate fragment Shader=================\n");
+			OutputDebugStringA("===============Could not allocate fragment Shader=================\n");
 		}
 		if( __gShader < 0)
 		{
-			printf("===============Could not allocate geometry Shader=================\n");
+			OutputDebugStringA("===============Could not allocate geometry Shader=================\n");
 		}
 		return;
 	}
@@ -72,36 +72,65 @@ void CollectiveShader::constructShader()
 
 	GLint result;
 	glGetShaderiv( __vShader, GL_COMPILE_STATUS, &result );
-	if( result == GL_FALSE )
-	{
-		//error
-		printf("================error compiling Vertex shader============================\n");
-	}
-	else if( result == GL_TRUE)
-	{
-		printf("vertex shader compiled successfully\n");
-	}
 
-	glGetShaderiv( __fShader, GL_COMPILE_STATUS, &result );
 	if( result == GL_FALSE )
 	{
 		//error
-		printf("================error compiling fragment shader============================\n");
+		OutputDebugStringA("================error compiling Vertex shader============================\n");
 	}
 	else if( result == GL_TRUE)
 	{
-		printf("fragment shader compiled successfully\n");
+		OutputDebugStringA("vertex shader compiled successfully\n");
 	}
 
 	glGetShaderiv( __gShader, GL_COMPILE_STATUS, &result );
 	if( result == GL_FALSE )
 	{
 		//error
-		printf("================error compiling geometry shader============================\n");
+		OutputDebugStringA("================error compiling geometry shader============================\n");
 	}
 	else if( result == GL_TRUE)
 	{
-		printf("geometry shader compiled successfully\n");
+		OutputDebugStringA("geometry shader compiled successfully\n");
+	}
+
+	glGetShaderiv( __fShader, GL_COMPILE_STATUS, &result );
+	if( result == GL_FALSE )
+	{
+		//error
+		OutputDebugStringA("================error compiling fragment shader============================\n");
+	}
+	else if( result == GL_TRUE)
+	{
+		OutputDebugStringA("fragment shader compiled successfully\n");
+	}
+
+	GLint logLength;
+	glGetShaderiv(__vShader,GL_INFO_LOG_LENGTH, &logLength);
+	if(logLength > 0)
+	{
+		GLchar* buildLog = new GLchar[logLength];
+		glGetShaderInfoLog(__vShader, logLength, &logLength, buildLog);
+		OutputDebugStringA(buildLog);
+		delete[] buildLog;
+	}
+
+	glGetShaderiv(__gShader,GL_INFO_LOG_LENGTH, &logLength);
+	if(logLength > 0)
+	{
+		GLchar* buildLog = new GLchar[logLength];
+		glGetShaderInfoLog(__gShader, logLength, &logLength, buildLog);
+		OutputDebugStringA(buildLog);
+		delete[] buildLog;
+	}
+
+	glGetShaderiv(__fShader,GL_INFO_LOG_LENGTH, &logLength);
+	if(logLength > 0)
+	{
+		GLchar* buildLog = new GLchar[logLength];
+		glGetShaderInfoLog(__fShader, logLength, &logLength, buildLog);
+		OutputDebugStringA(buildLog);
+		delete[] buildLog;
 	}
 
 	__transformFeedback = false;

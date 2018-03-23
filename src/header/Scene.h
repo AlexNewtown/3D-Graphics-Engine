@@ -27,7 +27,6 @@
 #include "data structures/RadianceCacheUniformGrid.h"
 #include "shader\RadianceMapShader.h"
 #include "shader\MonteCarloBRDFShader.h"
-#include "GaussianTexture.h"
 #include "shader\ShadowMapShader.h"
 #include "openGL/Renderbuffer.h"
 #include "shading utils/PhotonMap.h"
@@ -50,7 +49,7 @@
 #include "shader\StochasticRayTraceShader.h"
 #include "shader\PointCloudShader.h"
 #include <random>
-#include "openCL\RayTracerKernel.h"
+//#include "openCL\RayTracerKernel.h"
 #include "shader/IrradianceCachingShader.h"
 #include "openCL/NNKernel.h"
 #include "entities/PointCloudEntity.h"

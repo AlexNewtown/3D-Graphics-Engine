@@ -15,6 +15,15 @@ Scene Constructor.
 */
 Scene::Scene(Camera* camera)
 {
+	radianceMapShader = nullptr;
+	__boundingHierarchy = nullptr;
+	__numTreeTexBoundaries = 0;
+	__boundaryTreeTexFloat = nullptr;
+	__boundaryTreeTexFloatSize = 0;
+	__boundaryTreeTexInt = nullptr;
+	__boundaryTreeTexIntSize = 0;
+	filterBlurShader = nullptr;
+
 	__camera = camera;
 	shadingType = SHADER_TYPE_RASTERIZE; 
 	renderbuffer = new Renderbuffer(getControllerInstance()->screenWidth(), getControllerInstance()->screenHeight(),GL_FLOAT);
@@ -42,8 +51,10 @@ Scene::~Scene()
 
 	__pointCloudEntityList.clear();
 
-	delete renderbuffer;
-	delete filterBlurShader;
+	if(renderbuffer != nullptr)
+		delete renderbuffer;
+	if(filterBlurShader != nullptr)
+		delete filterBlurShader;
 }
 
 
@@ -190,6 +201,16 @@ void Scene::preRender()
 		}
 	}
 
+	if (shadingType == SHADER_TYPE_POINT_CLOUD)
+	{
+		// attach the textures to the texture normalization shader
+		for (int i = 0; i < __pointCloudEntityList.size(); i++)
+		{
+			((PointCloudShader*)__pointCloudEntityList[i]->shader())->tns->addTexture(renderbuffer->framebuffer->colorTex, "accumulationColor", -1);
+			((PointCloudShader*)__pointCloudEntityList[i]->shader())->tns->addTexture(renderbuffer->framebuffer->colorTex1, "accumulationNumSamples", -1);
+		}
+	}
+
 }
 
 
@@ -208,10 +229,33 @@ void Scene::render()
 		__entityList[i]->render();
 	}
 
+	bool deferredShader = true;
 	for (int i = 0; i < __pointCloudEntityList.size(); i++)
 	{
+		if(deferredShader)
+		{
+			// bind the framebufer
+			renderbuffer->bindFramebuffer();
+		
+			//set the render targets
+			const GLenum buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+			glDrawBuffers(2, buffers);
+		}
+		// render the point cloud
+
 		__pointCloudEntityList[i]->render();
+		glFlush();
+	
+		//reset to default
+		glDrawBuffer(GL_BACK);
+		if(deferredShader)
+		{
+			renderbuffer->unbindFramebuffer();
+
+			((PointCloudShader*)__pointCloudEntityList[i]->shader())->tns->render();
+		}
 	}
+
 
 #ifdef _EDITOR
 	if ( (shadingType == SHADER_TYPE_SH_BRDF_PHOTON_MAP || this->shadingType == SHADER_TYPE_RADIANCE_CACHE_UNIFORM_GRID || this->shadingType == SHADER_TYPE_PHOTON_MAP) && radianceMapShader != NULL)
@@ -453,6 +497,7 @@ void Scene::renderOfflineParallel(int imageWidth, int imageHeight, std::string r
 		lightEntities.push_back(le);
 	}
 
+	/*
 	ClContext* clContext = new ClContext();
 	RayTracerKernel* rayTracer = new RayTracerKernel(clContext, faces, materials, lightEntities);
 
@@ -462,7 +507,7 @@ void Scene::renderOfflineParallel(int imageWidth, int imageHeight, std::string r
 	unsigned char* returnTex8U = new unsigned char[imageWidth*imageHeight * 4];
 	for (int i = 0; i < imageWidth*imageHeight * 4; i++)
 	{
-		returnTex8U[i] = round(255.0*abs(image[i]));
+		returnTex8U[i] = floor(255.0*abs(image[i]) + 0.5);
 	}
 	lodepng::encode(bufout, returnTex8U, imageWidth, imageHeight);
 	lodepng::save_file(bufout, renderDirectory);
@@ -476,6 +521,7 @@ void Scene::renderOfflineParallel(int imageWidth, int imageHeight, std::string r
 	lightEntities.clear();
 	delete clContext;
 	delete rayTracer;
+	*/
 }
 
 /*
@@ -958,7 +1004,7 @@ void Scene::renderOffline(int imageWidth, int imageHeight, std::string renderDir
 	unsigned char* returnTex8U = new unsigned char[imageWidth*imageHeight * 4];
 	for (int i = 0; i < imageWidth*imageHeight * 4; i++)
 	{
-		returnTex8U[i] = round(255.0*abs(image[i]));
+		returnTex8U[i] = floor(255.0*abs(image[i]) + 0.5);
 	}
 	lodepng::encode(bufout, returnTex8U, imageWidth, imageHeight);
 	lodepng::save_file(bufout, renderDirectory);
@@ -975,6 +1021,7 @@ void Scene::renderOffline(int imageWidth, int imageHeight, std::string renderDir
 std::vector<float> Scene::computeVertexRadiance()
 {
 	std::vector<Vertex*> vertices = computeEntityVertexList();
+	return std::vector<float>();
 }
 
 float Scene::directRadiance(float* position, float* normal, MeshHierarchyKd* mh)
@@ -3229,10 +3276,10 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		{
 			for (int x = 0; x < tWidth; x++)
 			{
-				returnTex8U[tIndex] = round(255.0*abs(returnTex[tIndex]));
-				returnTex8U[tIndex+1] = round(255.0*abs(returnTex[tIndex+1]));
-				returnTex8U[tIndex+2] = round(255.0*abs(returnTex[tIndex+2]));
-				returnTex8U[tIndex+3] = round(255.0*abs(returnTex[tIndex+3]));
+				returnTex8U[tIndex] = floor(255.0*abs(returnTex[tIndex]) + 0.5);
+				returnTex8U[tIndex+1] = floor(255.0*abs(returnTex[tIndex+1]) + 0.5);
+				returnTex8U[tIndex+2] = floor(255.0*abs(returnTex[tIndex+2]) + 0.5);
+				returnTex8U[tIndex+3] = floor(255.0*abs(returnTex[tIndex+3]) + 0.5);
 				tIndex += 4;
 			}
 		}
@@ -3289,10 +3336,10 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		{
 			for (int x = 0; x < tWidth; x++)
 			{
-				returnTex8U[tIndex] = round(255.0*abs(returnTex[tIndex]));
-				returnTex8U[tIndex + 1] = round(255.0*abs(returnTex[tIndex + 1]));
-				returnTex8U[tIndex + 2] = round(255.0*abs(returnTex[tIndex + 2]));
-				returnTex8U[tIndex + 3] = round(255.0*abs(returnTex[tIndex + 3]));
+				returnTex8U[tIndex] = floor(255.0*abs(returnTex[tIndex]) + 0.5);
+				returnTex8U[tIndex + 1] = floor(255.0*abs(returnTex[tIndex + 1]) + 0.5);
+				returnTex8U[tIndex + 2] = floor(255.0*abs(returnTex[tIndex + 2]) + 0.5);
+				returnTex8U[tIndex + 3] = floor(255.0*abs(returnTex[tIndex + 3]) + 0.5);
 				tIndex += 4;
 			}
 		}
@@ -3336,10 +3383,10 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		{
 			for (int x = 0; x < tWidth; x++)
 			{
-				returnTex8U[tIndex] = round(255.0*abs(returnTex[tIndex]));
-				returnTex8U[tIndex + 1] = round(255.0*abs(returnTex[tIndex + 1]));
-				returnTex8U[tIndex + 2] = round(255.0*abs(returnTex[tIndex + 2]));
-				returnTex8U[tIndex + 3] = round(255.0*abs(returnTex[tIndex + 3]));
+				returnTex8U[tIndex] = floor(255.0*abs(returnTex[tIndex]) + 0.5);
+				returnTex8U[tIndex + 1] = floor(255.0*abs(returnTex[tIndex + 1]) + 0.5);
+				returnTex8U[tIndex + 2] = floor(255.0*abs(returnTex[tIndex + 2]) + 0.5);
+				returnTex8U[tIndex + 3] = floor(255.0*abs(returnTex[tIndex + 3]) + 0.5);
 				tIndex += 4;
 			}
 		}
@@ -3374,10 +3421,10 @@ std::vector<Texture_obj<GLfloat>*> Scene::computeRadianceTexture()
 		{
 			for (int x = 0; x < tWidth; x++)
 			{
-				returnTex8U[tIndex] = round(255.0*abs(returnTex[tIndex]));
-				returnTex8U[tIndex + 1] = round(255.0*abs(returnTex[tIndex + 1]));
-				returnTex8U[tIndex + 2] = round(255.0*abs(returnTex[tIndex + 2]));
-				returnTex8U[tIndex + 3] = round(255.0*abs(returnTex[tIndex + 3]));
+				returnTex8U[tIndex] = floor(255.0*abs(returnTex[tIndex]) + 0.5);
+				returnTex8U[tIndex + 1] = floor(255.0*abs(returnTex[tIndex + 1]) + 0.5);
+				returnTex8U[tIndex + 2] = floor(255.0*abs(returnTex[tIndex + 2]) + 0.5);
+				returnTex8U[tIndex + 3] = floor(255.0*abs(returnTex[tIndex + 3]) + 0.5);
 				tIndex += 4;
 			}
 		}
@@ -3863,6 +3910,60 @@ bool Scene::exportScene(const char* filePath)
 		file.write((char*)&(currentEntity->reducedScattering[2]), 4);
 	}
 
+	// point cloud entities
+	numE = __pointCloudEntityList.size();
+	file.write((char*)&numE, 4);
+	for (int i = 0; i < numE; i++)
+	{
+		currentEntity = (Model_obj*)__pointCloudEntityList[i];
+		int j = 0;
+		while (currentEntity->filePath()[j] != '\0')
+			j++;
+		j++;
+
+		file.write((char*)&j, 4);
+		file.write((char*)currentEntity->filePath(), j);
+
+		GLfloat x = currentEntity->x();
+		GLfloat y = currentEntity->y();
+		GLfloat z = currentEntity->z();
+
+		GLfloat rotX = currentEntity->rotX();
+		GLfloat rotY = currentEntity->rotY();
+		GLfloat rotZ = currentEntity->rotZ();
+
+		GLfloat scaleX = currentEntity->scaleX();
+		GLfloat scaleY = currentEntity->scaleY();
+		GLfloat scaleZ = currentEntity->scaleZ();
+
+		file.write((char*)&x, 4);
+		file.write((char*)&y, 4);
+		file.write((char*)&z, 4);
+		file.write((char*)&rotX, 4);
+		file.write((char*)&rotY, 4);
+		file.write((char*)&rotZ, 4);
+		file.write((char*)&scaleX, 4);
+		file.write((char*)&scaleY, 4);
+		file.write((char*)&scaleZ, 4);
+
+		unsigned int shaderType = currentEntity->shaderType();
+		file.write((char*)&shaderType, 4);
+
+
+		/*BRDF variables*/
+		file.write((char*)&currentEntity->brdfType, 4);
+		file.write((char*)&currentEntity->indexOfRefraction, 4);
+		file.write((char*)&currentEntity->phongN, 4);
+		file.write((char*)&currentEntity->microfacetM, 4);
+
+		file.write((char*)&(currentEntity->absorption[0]), 4);
+		file.write((char*)&(currentEntity->absorption[1]), 4);
+		file.write((char*)&(currentEntity->absorption[2]), 4);
+		file.write((char*)&(currentEntity->reducedScattering[0]), 4);
+		file.write((char*)&(currentEntity->reducedScattering[1]), 4);
+		file.write((char*)&(currentEntity->reducedScattering[2]), 4);
+	}
+
 	int numlightE = __lightEntityList.size();
 
 	file.write((char*)&numlightE, 4);
@@ -4271,6 +4372,81 @@ Scene* importScene(const char* filePath, Camera* cam)
 		e->reducedScattering[2] = reducedScattering[2];
 		scene->addEntity(e);
 	}
+
+
+	int numPointCloudEntites;
+	file.read((char*)&numPointCloudEntites, 4);
+	
+	for (int i = 0; i < numPointCloudEntites; i++)
+	{
+		int filePathSize;
+		file.read((char*)&filePathSize, 4);
+		char* fp = new char[filePathSize];
+		file.read(fp, filePathSize);
+
+		GLfloat x;
+		GLfloat y;
+		GLfloat z;
+
+		GLfloat rotX;
+		GLfloat rotY;
+		GLfloat rotZ;
+
+		GLfloat scaleX;
+		GLfloat scaleY;
+		GLfloat scaleZ;
+
+		file.read((char*)&x, 4);
+		file.read((char*)&y, 4);
+		file.read((char*)&z, 4);
+		file.read((char*)&rotX, 4);
+		file.read((char*)&rotY, 4);
+		file.read((char*)&rotZ, 4);
+		file.read((char*)&scaleX, 4);
+		file.read((char*)&scaleY, 4);
+		file.read((char*)&scaleZ, 4);
+
+		unsigned int shaderType;
+		file.read((char*)&shaderType, 4);
+
+		int brdfType;
+		file.read((char*)&brdfType, 4);
+
+		/*BRDF variables*/
+		float indexOfRefraction, phongN, microfacetM;
+		file.read((char*)&indexOfRefraction, 4);
+		file.read((char*)&phongN, 4);
+		file.read((char*)&microfacetM, 4);
+
+		float absorption[3];
+		float reducedScattering[3];
+		file.read((char*)&(absorption[0]), 4);
+		file.read((char*)&(absorption[1]), 4);
+		file.read((char*)&(absorption[2]), 4);
+		file.read((char*)&(reducedScattering[0]), 4);
+		file.read((char*)&(reducedScattering[1]), 4);
+		file.read((char*)&(reducedScattering[2]), 4);
+
+		PointCloudEntity* pce;
+		PointCloudShader* shader = new PointCloudShader();
+		pce = new PointCloudEntity(fp, shader);
+
+		pce->moveTo(x, y, z);
+		pce->scaleTo(scaleX, scaleY, scaleZ);
+		pce->rotateTo(rotX, rotY, rotZ);
+		pce->indexOfRefraction = indexOfRefraction;
+		pce->brdfType = brdfType;
+		pce->phongN = phongN;
+		pce->microfacetM = microfacetM;
+		pce->absorption[0] = absorption[0];
+		pce->absorption[1] = absorption[1];
+		pce->absorption[2] = absorption[2];
+		pce->reducedScattering[0] = reducedScattering[0];
+		pce->reducedScattering[1] = reducedScattering[1];
+		pce->reducedScattering[2] = reducedScattering[2];
+		scene->addPointCloudEntity(pce);
+	}
+
 
 	int numLightEntities;
 	file.read((char*)&numLightEntities, 4);

@@ -19,6 +19,7 @@ Entity::Entity()
 	__mvmInverse = new Matrix4x4();
 	__localMvm = new Matrix4x4();
 	__localNm = new Matrix4x4();
+	__mInverse = new Matrix4x4();
 
 	__rotX = 0;
 	__rotY = 0;
@@ -56,6 +57,7 @@ void Entity::update(Camera* cam)
 	computeLocalMatrix();
 	computeGlobalMatrix(cam);
 	computeNormalMatrix();
+	computeInverseMatrix(cam);
 }
 
 const std::string Entity::entityName()
@@ -83,6 +85,10 @@ Matrix4x4* const Entity::mvmInverse()
 Matrix4x4* const Entity::localNm()
 {
 	return __localNm;
+}
+Matrix4x4* const Entity::mInverse()
+{
+	return __mInverse;
 }
 
 Matrix4x4* const Entity::localMvm()
@@ -242,6 +248,19 @@ void Entity::computeNormalMatrix()
 	nmInverse.transpose();
 	__localNm->copy(&nmInverse);
 
+}
+
+void Entity::computeInverseMatrix(Camera* cam)
+{
+	Matrix4x4 result;
+	cam->projectionMatrix()->mult(__mvm, &result);
+	Matrix4x4 resultInv;
+	result.set(0,0,result.get(0,0) + 0.0000001);
+	result.set(1,1,result.get(1,1) + 0.0000001);
+	result.set(2,2,result.get(2,2) + 0.0000001);
+	result.set(3,3,result.get(3,3) + 0.0000001);
+	result.inverse(&resultInv);
+	__mInverse->copy(&resultInv);
 }
 
 RigidBody::RigidBody(float mass)

@@ -17,6 +17,10 @@ public:
 	float position[3];
 	float normal[3];
 	float color[3];
+	
+	float aPhi, bPhi, cPhi, dPhi;
+	float aTheta, bTheta, cTheta, dTheta;
+	float aRad, bRad, cRad, dRad;
 };
 
 class PointCloudEntity : public Model_obj
@@ -42,4 +46,5 @@ protected:
 	virtual void addNormals();
 	virtual void addColors();
 	virtual void computeBounds();
+	virtual void addQuadraticCoefficients();
 };

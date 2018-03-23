@@ -28,6 +28,21 @@ PointCloud::PointCloud(float* pos, float* norm, float* col)
 	color[0] = col[0];
 	color[1] = col[1];
 	color[2] = col[2];
+
+	aPhi = 0.0;
+	bPhi = 0.0;
+	cPhi = 0.0;
+	dPhi = 0.0;
+
+	aTheta = 0.0;
+	bTheta = 0.0;
+	cTheta = 0.0;
+	dTheta = 0.0;
+
+	aRad = 0.0;
+	bRad = 0.0;
+	cRad = 0.0;
+	dRad = 0.0;
 }
 
 PointCloudEntity::PointCloudEntity(const char* filePath, Shader* shader) : Model_obj()
@@ -53,6 +68,7 @@ PointCloudEntity::PointCloudEntity(const char* filePath, Shader* shader) : Model
 	addNormals();
 	addColors();
 	addMatrixUniforms();
+	addQuadraticCoefficients();
 
 	__pos = new GLfloat[3];
 	__pos[0] = 0.0;
@@ -83,7 +99,6 @@ void PointCloudEntity::loadPointCloud(const char* filePath)
 
 	int numPoints;
 	file.read((char*)&numPoints, 4);
-	numPoints = 9000;
 	for (int i = 0; i < numPoints; i++)
 	{
 		PointCloud* pc = new PointCloud();
@@ -102,6 +117,22 @@ void PointCloudEntity::loadPointCloud(const char* filePath)
 		file.read((char*)&(pc->color[0]), 4);
 		file.read((char*)&(pc->color[1]), 4);
 		file.read((char*)&(pc->color[2]), 4);
+
+
+		file.read((char*)&(pc->aPhi), 4);
+		file.read((char*)&(pc->bPhi), 4);
+		file.read((char*)&(pc->cPhi), 4);
+		file.read((char*)&(pc->dPhi), 4);
+
+		file.read((char*)&(pc->aTheta), 4);
+		file.read((char*)&(pc->bTheta), 4);
+		file.read((char*)&(pc->cTheta), 4);
+		file.read((char*)&(pc->dTheta), 4);
+
+		file.read((char*)&(pc->aRad), 4);
+		file.read((char*)&(pc->bRad), 4);
+		file.read((char*)&(pc->cRad), 4);
+		file.read((char*)&(pc->dRad), 4);
 
 		pointCloud.push_back(pc);
 	}
@@ -181,6 +212,7 @@ void PointCloudEntity::addColors()
 	delete colorData;
 }
 
+
 void PointCloudEntity::computeBounds()
 {
 	if (pointCloud.size() <= 0)
@@ -205,4 +237,50 @@ void PointCloudEntity::computeBounds()
 		bounds->high->y = maximum(bounds->high->y, pc->position[1]);
 		bounds->high->z = maximum(bounds->high->z, pc->position[2]);
 	}
+}
+
+void PointCloudEntity::addQuadraticCoefficients()
+{
+	if (pointCloud.size() <= 0)
+		return;
+
+	int numPoints = pointCloud.size();
+
+	GLfloat *coefficientPhiData = new GLfloat[numPoints * 4];
+	PointCloud* pc;
+	for (int i = 0; i < numPoints; i++)
+	{
+		pc = pointCloud[i];
+		coefficientPhiData[i * 4] = pc->aPhi;
+		coefficientPhiData[i * 4 + 1] = pc->bPhi;
+		coefficientPhiData[i * 4 + 2] = pc->cPhi;
+		coefficientPhiData[i * 4 + 3] = pc->dPhi;
+	}
+	__shader->addAttributeBuffer(coefficientPhiData, numPoints * 4, sizeof(GLfloat), GL_FLOAT, "quadraticPhiCoef", 3, 4);
+	delete coefficientPhiData;
+
+
+	GLfloat *coefficientThetaData = new GLfloat[numPoints * 4];
+	for (int i = 0; i < numPoints; i++)
+	{
+		pc = pointCloud[i];
+		coefficientThetaData[i * 4] = pc->aTheta;
+		coefficientThetaData[i * 4 + 1] = pc->bTheta;
+		coefficientThetaData[i * 4 + 2] = pc->cTheta;
+		coefficientThetaData[i * 4 + 3] = pc->dTheta;
+	}
+	__shader->addAttributeBuffer(coefficientThetaData, numPoints * 4, sizeof(GLfloat), GL_FLOAT, "quadraticThetaCoef", 4, 4);
+	delete coefficientThetaData;
+
+	GLfloat *coefficientRadData = new GLfloat[numPoints * 4];
+	for (int i = 0; i < numPoints; i++)
+	{
+		pc = pointCloud[i];
+		coefficientRadData[i * 4] = pc->aRad;
+		coefficientRadData[i * 4 + 1] = pc->bRad;
+		coefficientRadData[i * 4 + 2] = pc->cRad;
+		coefficientRadData[i * 4 + 3] = pc->dRad;
+	}
+	__shader->addAttributeBuffer(coefficientRadData, numPoints * 4, sizeof(GLfloat), GL_FLOAT, "quadraticRadCoef", 5, 4);
+	delete coefficientRadData;
 }

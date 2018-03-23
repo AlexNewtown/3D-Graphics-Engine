@@ -36,7 +36,8 @@ Model_obj::Model_obj(const char* filePath, Shader* s, bool anchored): Entity(),R
 	size_t endSub = stringName.find_last_of(".");
 	size_t startSub = stringName.find_last_of("/");
 	__entityName = stringName.substr(startSub+1, endSub - startSub - 1);
-
+	__meshTree = nullptr;
+	__treeTex = nullptr;
 	//subdivideFaces(0.01);
 
 	bounds = NULL;
@@ -624,9 +625,9 @@ Model_obj::~Model_obj()
 
 	delete __shader;
 	delete __objLoader;
-	if(__meshTree != NULL)
+	if(__meshTree != nullptr)
 		delete __meshTree;
-	if(__treeTex != NULL)
+	if(__treeTex != nullptr)
 		delete __treeTex;
 }
 
@@ -2270,6 +2271,7 @@ void Model_obj::addMatrixUniforms()
 	__shader->addUniform((void*)this->localMvm()->data(), "entityMatrix", UNIFORM_MAT_4, true);
 	__shader->addUniform((void*)this->localNm()->data(), "entityNormalMatrix", UNIFORM_MAT_4, true);
 	__shader->addUniform((void*)this->mvmInverse()->data(), "modelViewMatrixInverse", UNIFORM_MAT_4, true);
+	__shader->addUniform((void*)this->mInverse()->data(), "transformMatrixInverse", UNIFORM_MAT_4, true);
 }
 
 ObjLoader* Model_obj::objloader()

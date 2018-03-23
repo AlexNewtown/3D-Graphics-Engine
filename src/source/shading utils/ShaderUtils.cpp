@@ -700,7 +700,7 @@ bool Shader::addTextureCopy(GLuint texIndex, GLchar* texName, int activeTexture)
 	
 	for (int i = 0; i < tWidth*tHeight * 4; i++)
 	{
-		texByte[i] = (GLubyte)round(255.0*tempByte[i]);
+		texByte[i] = (GLubyte)floor(255.0*tempByte[i] + 0.5);
 	}
 	
 	t->buf = texByte;
@@ -734,6 +734,8 @@ bool Shader::addTexture(GLuint texIndex, GLchar* texName, int activeTexture)
 	glBindTexture(GL_TEXTURE_2D, texIndex);
 
 	glUniform1i(texLocation, activeTexture);
+
+	return true;
 
 	Texture_obj<GLubyte>* to = new Texture_obj<GLubyte>();
 	to->width = -1;

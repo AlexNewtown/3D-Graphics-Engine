@@ -14,22 +14,51 @@ PointCloudShader::PointCloudShader()
 
 	constructShader();
 
-	GLchar** attributes = new GLchar*[3];
+	GLchar** attributes = new GLchar*[6];
 	attributes[0] = "position";
 	attributes[1] = "normal";
 	attributes[2] = "color";
-	addAttributes(attributes, 3);
+	attributes[3] = "quadraticPhiCoef";
+	attributes[4] = "quadraticThetaCoef";
+	attributes[5] = "quadraticRadCoef";
+	addAttributes(attributes, 6);
 
 	linkProgram();
 	setPrimitiveType(GL_POINTS);
-	
+
+	tns = new TextureNormalizationShader();
 }
 
 void PointCloudShader::render()
 {
-	CollectiveShader::render();
+	bool debug = false;
+	if(!debug)
+	{
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE);
+		glPointSize(0.1);
+		CollectiveShader::render();
+	}
+	else
+	{
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE);
+		glPointSize(0.1);
+		CollectiveShader::render();
+	}
+
+	glDrawBuffer(GL_BACK);
 }
 
 PointCloudShader::~PointCloudShader()
 {
+	delete tns;
 }

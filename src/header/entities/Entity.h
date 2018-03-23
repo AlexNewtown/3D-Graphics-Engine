@@ -88,6 +88,7 @@ public:
 	Matrix4x4* const mvmInverse();
 	Matrix4x4* const localMvm();
 	Matrix4x4* const localNm();
+	Matrix4x4* const mInverse();
 
 	bool highlighted;
 	bool selected;
@@ -143,12 +144,14 @@ public:
 	void computeLocalMatrix();
 	void computeGlobalMatrix(Camera* cam);
 	void computeNormalMatrix();
+	void computeInverseMatrix(Camera* cam);
 protected:
 	std::string __entityName;
 
 	Matrix4x4* __mvm;
 	Matrix4x4* __nm;
 	Matrix4x4* __mvmInverse;
+	Matrix4x4* __mInverse;
 
 	Matrix4x4* __localMvm;
 	Matrix4x4* __localNm;

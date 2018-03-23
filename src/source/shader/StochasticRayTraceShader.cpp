@@ -133,7 +133,7 @@ void StochasticRayTraceShader::render()
 	unsigned char* returnTex8U = new unsigned char[totalTextureSize];
 	for (int i = 0; i < totalTextureSize; i++)
 	{
-		returnTex8U[i] = round(255.0*abs(finalImage[i]));
+		returnTex8U[i] = floor(255.0*abs(finalImage[i]) + 0.5);
 	}
 	std::string fpTransmittedRadiance("../bin/exports/rayTracedImage.png");
 	lodepng::encode(bufout, returnTex8U,getControllerInstance()->screenWidth(), getControllerInstance()->screenHeight());

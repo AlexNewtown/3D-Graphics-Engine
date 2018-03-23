@@ -7,6 +7,7 @@ RayTracerKernel::RayTracerKernel(ClContext* context, std::vector<MaterialFace*> 
 	2. add mesh hierarchy textures
 	3. add materials
 	*/
+	numRayTracingIters = 100;
 
 	createKernel("rayCastUpdate");
 
