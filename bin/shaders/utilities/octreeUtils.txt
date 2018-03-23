@@ -1,0 +1,35 @@
+uniform isamplerBuffer treeTextureInt;
+uniform samplerBuffer treeTextureFloat;
+
+uniform int treeTexutreFloatDataSize;
+uniform int treeTexutreIntDataSize;
+
+struct OctreeNode
+{
+	vec3 boundsLow;
+	vec3 boundsHigh;
+	int index;
+
+	int child0;
+	int child1;
+	int child2;
+	int child3;
+	int child4;
+	int child5;
+	int child6;
+	int child7;
+
+	int adjacentNode0;
+	int adjacentNode1;
+	int adjacentNode2;
+	int adjacentNode3;
+	int adjacentNode4;
+	int adjacentNode5;
+};
+
+float getOctreeMaxX(int tIndex);
+float getOctreeMaxY(int tIndex);
+float getOctreeMaxZ(int tIndex);
+float getOctreeMinX(int tIndex);
+float getOctreeMinY(int tIndex);
+float getOctreeMinZ(int tIndex);
